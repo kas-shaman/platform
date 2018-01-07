@@ -7,7 +7,7 @@
 
 namespace native {
     enum class PlatformKeyboardKey {
-        A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+        A = 0, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
         LEFT, RIGHT, UP, DOWN,
         SPACE, ENTER, BACKSPACE, TAB
     };
@@ -243,6 +243,4 @@ namespace native {
         virtual void prepareFrame() = 0;
         virtual void presentFrame(float dt) = 0;
     };
-
-    
 }

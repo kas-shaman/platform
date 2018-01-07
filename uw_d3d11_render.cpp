@@ -175,7 +175,8 @@ namespace native {
     }
     
     RenderShader::RenderShader(RenderShader &&other) {
-        *this = std::move(other);
+        _data = other._data;
+        other._data = nullptr;
     }
 
     RenderShader& RenderShader::operator =(RenderShader &&other) {
@@ -197,7 +198,8 @@ namespace native {
     }
 
     RenderGeometry::RenderGeometry(RenderGeometry &&other) {
-        *this = std::move(other);
+        _data = other._data;
+        other._data = nullptr;
     }
 
     RenderGeometry& RenderGeometry::operator =(RenderGeometry &&other) {
@@ -227,7 +229,8 @@ namespace native {
     }
 
     RenderTexture::RenderTexture(RenderTexture &&other) {
-        *this = std::move(other);
+        _data = other._data;
+        other._data = nullptr;
     }
 
     RenderTexture& RenderTexture::operator =(RenderTexture &&other) {
@@ -568,8 +571,8 @@ namespace native {
     //-------------------------------------------------------------------------
 
     void UWDirect3D11Render::_initialize() {
-        unsigned width = _platform->getNativeScreenWidth();
-        unsigned height = _platform->getNativeScreenHeight();
+        unsigned width = unsigned(_platform->getNativeScreenWidth());
+        unsigned height = unsigned(_platform->getNativeScreenHeight());
 
         _swapChain.Attach(reinterpret_cast<IDXGISwapChain1 *>(_platform->setNativeRenderingContext(_device.Get())));
 

@@ -46,6 +46,13 @@ namespace native {
         std::mutex g_logMutex;
 
         _CrtMemState g_startMemState;
+
+        bool convertKey(Windows::System::VirtualKey key, std::uint32_t &target) {
+            if (key >= Windows::System::VirtualKey::A && key <= Windows::System::VirtualKey::Z) {
+                target = std::uint32_t(key) - std::uint32_t(Windows::System::VirtualKey::A);
+                return true;
+            }
+        }
     }
 
     namespace uwp {
@@ -199,20 +206,28 @@ namespace native {
 
             }
             void OnKeyDown(Windows::UI::Core::CoreWindow ^sender, Windows::UI::Core::KeyEventArgs ^args) {
-                PlatformKeyboardEventArgs keyboardEvent { std::uint32_t(args->VirtualKey) };
+                std::uint32_t key;
 
-                for (const auto &entry : g_keyboardCallbacks) {
-                    if (entry.keyboardDown) {
-                        entry.keyboardDown(keyboardEvent);
+                if (convertKey(args->VirtualKey, key)) {
+                    PlatformKeyboardEventArgs keyboardEvent {key};
+
+                    for (const auto &entry : g_keyboardCallbacks) {
+                        if (entry.keyboardDown) {
+                            entry.keyboardDown(keyboardEvent);
+                        }
                     }
                 }
             }
             void OnKeyUp(Windows::UI::Core::CoreWindow ^sender, Windows::UI::Core::KeyEventArgs ^args) {
-                PlatformKeyboardEventArgs keyboardEvent { std::uint32_t(args->VirtualKey) };
+                std::uint32_t key;
 
-                for (const auto &entry : g_keyboardCallbacks) {
-                    if (entry.keyboardUp) {
-                        entry.keyboardUp(keyboardEvent);
+                if (convertKey(args->VirtualKey, key)) {
+                    PlatformKeyboardEventArgs keyboardEvent {key};
+
+                    for (const auto &entry : g_keyboardCallbacks) {
+                        if (entry.keyboardUp) {
+                            entry.keyboardUp(keyboardEvent);
+                        }
                     }
                 }
             }
@@ -228,7 +243,7 @@ namespace native {
     }
 
     std::shared_ptr<PlatformInterface> PlatformInterface::makeInstance() {
-        assert(g_updateAndDraw);
+        assert(g_updateAndDraw == nullptr);
         return std::make_shared<UWPlatform>();
     }
 
@@ -304,18 +319,23 @@ namespace native {
 
         try {
             auto folder = Windows::ApplicationModel::Package::Current->InstalledLocation;
+            filePathW = std::wstring(folder->Path->Data()) + std::wstring(L"\\") + filePathW;
 
-            Windows::Storage::StorageFile ^file = concurrency::create_task(folder->GetFileAsync(ref new Platform::String(filePathW.c_str()))).get();
-            Windows::Storage::Streams::IRandomAccessStream ^stream = concurrency::create_task(file->OpenAsync(Windows::Storage::FileAccessMode::Read)).get();
-            Windows::Storage::Streams::DataReader ^reader = ref new Windows::Storage::Streams::DataReader(stream);
-
-            unsigned bytesLoaded = concurrency::create_task(reader->LoadAsync((unsigned)stream->Size)).get();
-            auto ptr = new unsigned char[bytesLoaded];
-
-            reader->ReadBytes(Platform::ArrayReference<unsigned char>(ptr, bytesLoaded, false));
+            CREATEFILE2_EXTENDED_PARAMETERS params = {0};
+            params.dwSize = sizeof(CREATEFILE2_EXTENDED_PARAMETERS);
+            params.dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
+            params.dwSecurityQosFlags = SECURITY_ANONYMOUS;
+            HANDLE file = CreateFile2(filePathW.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, &params);
+            
+            LARGE_INTEGER tmpsize;
+            GetFileSizeEx(file, &tmpsize);
+            
+            auto ptr = new unsigned char[tmpsize.LowPart];
+            ReadFile(file, ptr, tmpsize.LowPart, nullptr, nullptr);
+            CloseHandle(file);
 
             data.reset(ptr);
-            size = bytesLoaded;
+            size = tmpsize.LowPart;
             return true;
         }
         catch (Platform::Exception ^) {}
