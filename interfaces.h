@@ -107,7 +107,6 @@ namespace native {
         const char *name;
         Format format;
         bool perInstance = false;
-        std::size_t arraySize = 1;
     };
 
     struct RenderShader {
@@ -150,6 +149,13 @@ namespace native {
     };
 
     struct RenderGeometry {
+        enum class Topology {
+            LINES = 0,
+            LINESTRIP,
+            TRIANGLES,
+            TRIANGLESTRIP,
+        };
+
         struct Data;
         struct Data *_data;
 
@@ -242,9 +248,9 @@ namespace native {
         virtual void applyTextures(const std::initializer_list<const RenderTexture *> &textures) = 0;
 
         // Draw geometry
-        // @geometry - list of geometry (one geometry per slot)
+        // @geometry - geometry, can be nullptr
         //
-        virtual void drawGeometry(const std::initializer_list<const RenderGeometry *> &geometry, std::uint32_t vertexCount, std::uint32_t instanceCount) = 0;
+        virtual void drawGeometry(const RenderGeometry *geometry, std::uint32_t vertexCount, std::uint32_t instanceCount, RenderGeometry::Topology topology = RenderGeometry::Topology::TRIANGLES) = 0;
         //virtual void debugDrawLine(const math::vector3f &position, const math::vector3f &to, const math::color &color) = 0;
         //virtual void debugDrawCircle(const math::vector3f &position, float radius, const math::color &color) = 0;
 

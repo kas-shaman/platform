@@ -24,7 +24,7 @@ namespace native {
         void applyShaderConstants(const RenderShader &shader, const std::initializer_list<const void *> &constants = {}) override;
         void applyTextures(const std::initializer_list<const RenderTexture *> &textures) override;
         
-        void drawGeometry(const std::initializer_list<const RenderGeometry *> &geometry, std::uint32_t vertexCount, std::uint32_t instanceCount) override;
+        void drawGeometry(const RenderGeometry *geometry, std::uint32_t vertexCount, std::uint32_t instanceCount, RenderGeometry::Topology topology) override;
 
         void prepareFrame() override;
         void presentFrame(float dt) override;

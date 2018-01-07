@@ -531,26 +531,27 @@ namespace native {
         _context->PSSetShaderResources(0, std::uint32_t(textures.size()), tmpShaderResViews);
     }
 
-    void UWDirect3D11Render::drawGeometry(const std::initializer_list<const RenderGeometry *> &geometry, std::uint32_t vertexCount, std::uint32_t instanceCount) {
-        ID3D11Buffer *tmpBuffers[64];
-        std::uint32_t tmpStrides[64];
-        std::uint32_t tmpOffsets[64];
+    void UWDirect3D11Render::drawGeometry(const RenderGeometry *geometry, std::uint32_t vertexCount, std::uint32_t instanceCount, RenderGeometry::Topology topology) {
+        ID3D11Buffer *tmpBuffer = nullptr;
+        std::uint32_t tmpStride = 0;
+        std::uint32_t tmpOffset = 0;
         
-        for (std::size_t i = 0; i < geometry.size(); i++) {
-            tmpBuffers[i] = nullptr;
-            tmpStrides[i] = 0;
-            tmpOffsets[i] = 0;
-
-            if (auto *current = *(geometry.begin() + i)) {
-                if (const RenderGeometry::Data *imp = current->_data) {
-                    tmpBuffers[i] = imp->buffer.Get();
-                    tmpStrides[i] = imp->stride;
-                }
+        if (geometry) {
+            if (const RenderGeometry::Data *imp = geometry->_data) {
+                tmpBuffer = imp->buffer.Get();
+                tmpStride = imp->stride;
             }
         }
 
-        _context->IASetVertexBuffers(0, std::uint32_t(geometry.size()), tmpBuffers, tmpStrides, tmpOffsets);
-        _context->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        static D3D_PRIMITIVE_TOPOLOGY topologies[] = {
+            D3D_PRIMITIVE_TOPOLOGY_LINELIST,
+            D3D_PRIMITIVE_TOPOLOGY_LINESTRIP,
+            D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,
+            D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP,
+        };
+
+        _context->IASetPrimitiveTopology(topologies[unsigned(topology)]);
+        _context->IASetVertexBuffers(0, 1, &tmpBuffer, &tmpStride, &tmpOffset);
         _context->DrawInstanced(unsigned(vertexCount), unsigned(instanceCount), 0, 0); //
     }
 
