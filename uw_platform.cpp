@@ -5,12 +5,14 @@
 #define NOMINMAX
 
 #include <d3d11_1.h>
+#include <agile.h>
 #include <codecvt>
 #include <ppltasks.h>
 
 #include <chrono>
 #include <list>
 #include <mutex>
+#include <algorithm>
 
 #include <cassert>
 
@@ -38,6 +40,7 @@ namespace native {
         std::list<MouseCallbacksEntry> g_mouseCallbacks;
 
         std::function<void(float)> g_updateAndDraw = nullptr;
+        bool g_platformCreated = false;
 
         Platform::Agile<Windows::UI::Core::CoreWindow ^> g_window;
         Platform::Agile<Windows::UI::Core::CoreCursor ^> g_cursor;
@@ -46,12 +49,14 @@ namespace native {
         std::mutex g_logMutex;
 
         _CrtMemState g_startMemState;
-
+        
         bool convertKey(Windows::System::VirtualKey key, std::uint32_t &target) {
             if (key >= Windows::System::VirtualKey::A && key <= Windows::System::VirtualKey::Z) {
                 target = std::uint32_t(key) - std::uint32_t(Windows::System::VirtualKey::A);
                 return true;
             }
+
+            return false;
         }
     }
 
@@ -106,20 +111,18 @@ namespace native {
                 _CrtMemCheckpoint(&g_startMemState);
 
                 while (!_closed) {
-                    auto curFrameTime = std::chrono::high_resolution_clock::now();
-                    
                     if (_visible) {
                         CoreWindow::GetForCurrentThread()->Dispatcher->ProcessEvents(CoreProcessEventsOption::ProcessAllIfPresent);
                         if (g_updateAndDraw) {
-                            double dt = double(std::chrono::duration_cast<std::chrono::microseconds>(curFrameTime - prevFrameTime).count()) / 1000.0;
-                            g_updateAndDraw(float(dt)); // ms
+                            auto curFrameTime = std::chrono::high_resolution_clock::now();
+                            float dt = float(std::chrono::duration_cast<std::chrono::microseconds>(curFrameTime - prevFrameTime).count()) / 1000.0f;
+                            g_updateAndDraw(dt); // ms
+                            prevFrameTime = curFrameTime;
                         }
                     }
                     else {
                         CoreWindow::GetForCurrentThread()->Dispatcher->ProcessEvents(CoreProcessEventsOption::ProcessOneAndAllPending);
                     }
-
-                    prevFrameTime = curFrameTime;
                 }
 
                 _CrtMemDumpAllObjectsSince(&g_startMemState);
@@ -243,12 +246,12 @@ namespace native {
     }
 
     std::shared_ptr<PlatformInterface> PlatformInterface::makeInstance() {
-        assert(g_updateAndDraw == nullptr);
+        assert(g_platformCreated == false);
         return std::make_shared<UWPlatform>();
     }
 
     UWPlatform::UWPlatform() {
-
+        g_platformCreated = true;
     }
 
     UWPlatform::~UWPlatform() {

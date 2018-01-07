@@ -31,6 +31,7 @@ namespace native {
     public:
         static std::shared_ptr<PlatformInterface> makeInstance();
         virtual ~PlatformInterface() {}
+        PlatformInterface() = default;
 
     public:
         virtual void logInfo(const char *fmt, ...) = 0;
@@ -83,6 +84,12 @@ namespace native {
         // This method blocks execution until application exit
         //
         virtual void run(std::function<void(float)> &&updateAndDraw) = 0;
+
+    private:
+        PlatformInterface(PlatformInterface &&) = delete;
+        PlatformInterface(const PlatformInterface &) = delete;
+        PlatformInterface &operator =(PlatformInterface &&) = delete;
+        PlatformInterface &operator =(const PlatformInterface &) = delete;
     };
 
     struct RenderShaderInput {
@@ -166,6 +173,7 @@ namespace native {
     public:
         static std::shared_ptr<RenderInterface> makeInstance(const std::shared_ptr<PlatformInterface> &platform);
         virtual ~RenderInterface() {}
+        RenderInterface() = default;
 
     public:
         virtual void updateCameraTransform(const float (&camPos)[3], const float(&camDir)[3], const float(&camVP)[16]) = 0;
@@ -242,5 +250,11 @@ namespace native {
 
         virtual void prepareFrame() = 0;
         virtual void presentFrame(float dt) = 0;
+
+    private:
+        RenderInterface(RenderInterface &&) = delete;
+        RenderInterface(const RenderInterface &) = delete;
+        RenderInterface &operator =(RenderInterface &&) = delete;
+        RenderInterface &operator =(const RenderInterface &) = delete;
     };
 }

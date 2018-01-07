@@ -1,6 +1,6 @@
 
 #include "interfaces.h"
-#include "uw_d3d11_render.h"
+#include "d3d11_render.h"
 
 #include <d3dcompiler.h>
 #pragma comment(lib,"d3dcompiler.lib")
@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <cctype>
 #include <string>
+#include <algorithm>
 
 namespace native {
 

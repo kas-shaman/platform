@@ -1,10 +1,10 @@
 #pragma once
 
 namespace native {
-    class UWPlatform : public PlatformInterface {
+    class Win32Platform : public PlatformInterface {
     public:
-        UWPlatform();
-        ~UWPlatform();
+        Win32Platform();
+        ~Win32Platform();
 
         void logInfo(const char *fmt, ...) override;
         void logWarning(const char *fmt, ...) override;

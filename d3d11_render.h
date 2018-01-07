@@ -4,7 +4,6 @@
 #include <d3d11_1.h>
 #pragma comment(lib, "d3d11.lib")
 
-#include <agile.h>
 #include <wrl.h>
 
 using namespace Microsoft::WRL;
@@ -57,10 +56,5 @@ namespace native {
         void _initialize();
         bool _compileShader(const std::string &shader, const char *name, const char *target, ComPtr<ID3DBlob> &out);
         void _drawQuad();
-
-        UWDirect3D11Render(UWDirect3D11Render &&) = delete;
-        UWDirect3D11Render(const UWDirect3D11Render &) = delete;
-        UWDirect3D11Render &operator =(UWDirect3D11Render &&) = delete;
-        UWDirect3D11Render &operator =(const UWDirect3D11Render &) = delete;
     };
 }
