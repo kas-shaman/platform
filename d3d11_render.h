@@ -46,6 +46,7 @@ namespace native {
         ComPtr<ID3D11DepthStencilView> _defaultDepthView;
         ComPtr<ID3D11ShaderResourceView> _defaultDepthShaderResourceView;
         ComPtr<ID3D11RasterizerState> _defaultRasterState;
+        ComPtr<ID3D11BlendState> _defaultBlendState;
         ComPtr<ID3D11DepthStencilState> _defaultDepthState;
 
         ComPtr<ID3D11SamplerState> _defaultSamplerState;

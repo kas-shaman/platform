@@ -98,6 +98,7 @@ namespace native {
             "#define _mul(a, b) mul(a, b)\n"
             "#define _dot(a, b) dot(a, b)\n"
             "#define _norm(a) normalize(a)\n"
+            "#define _lerp(a, b, k) lerp(a, b, k)\n"
             "#define _tex2D(a) __t0.Sample(__s0, a)\n";
 
         std::size_t slGetTypeSize(const std::string &varname, const std::string &format) {
@@ -648,6 +649,24 @@ namespace native {
 
         _device->CreateRasterizerState(&rasterDsc, _defaultRasterState.GetAddressOf());
         _context->RSSetState(_defaultRasterState.Get());
+
+        // blend state
+        D3D11_BLEND_DESC blendDsc;
+        blendDsc.AlphaToCoverageEnable = FALSE;
+        blendDsc.IndependentBlendEnable = FALSE;
+        blendDsc.RenderTarget[0].BlendEnable = TRUE;
+
+        blendDsc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+        blendDsc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+        blendDsc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+        blendDsc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+
+        blendDsc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+        blendDsc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+        blendDsc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+        _device->CreateBlendState(&blendDsc, _defaultBlendState.GetAddressOf());
+        _context->OMSetBlendState(_defaultBlendState.Get(), nullptr, 0xffffffff);
 
         // depth state
         D3D11_DEPTH_STENCIL_DESC ddesc;
