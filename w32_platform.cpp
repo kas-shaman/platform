@@ -3,6 +3,7 @@
 #include "w32_platform.h"
 
 #define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
 
 #include <d3d11_1.h>
 #include <codecvt>
@@ -11,6 +12,7 @@
 #include <list>
 #include <mutex>
 #include <algorithm>
+#include <fstream>
 
 #include <cassert>
 
@@ -177,7 +179,17 @@ namespace native {
 
     bool Win32Platform::loadFile(const char *filePath, std::unique_ptr<unsigned char[]> &data, std::size_t &size) const {
         std::wstring filePathW = std::wstring_convert<std::codecvt_utf8_utf16 <wchar_t>>().from_bytes(filePath);
-        std::replace(filePathW.begin(), filePathW.end(), L'/', L'\\');
+        std::fstream fileStream(filePathW, std::ios::binary | std::ios::in | std::ios::ate);
+        
+        if (fileStream.is_open() && fileStream.good()) {
+            std::size_t fsize = std::size_t(fileStream.tellg());
+            data = std::make_unique<unsigned char[]>(fsize);
+            fileStream.seekg(0);
+            fileStream.read((char *)data.get(), fsize);
+            size = fsize;
+
+            return true;
+        }
 
         return false;
     }
