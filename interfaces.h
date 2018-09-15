@@ -1,98 +1,181 @@
 #pragma once
 
+// TODO: graphic state control
+// TODO: sound
+// TODO: joystick
+// TODO: tests
+
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <string>
 #include <functional>
 
-namespace native {
-    enum class PlatformKeyboardKey {
+namespace platform {
+    enum class KeyboardKey {
         A = 0, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+        NUM0, NUM1, NUM2, NUM3, NUM4, NUM5, NUM6, NUM7, NUM8, NUM9,
         LEFT, RIGHT, UP, DOWN,
-        SPACE, ENTER, BACKSPACE, TAB
+        SPACE, ENTER, TAB,
+        F1, F2, F3, F4, F5, F6, F7, F8, F9, F10,
     };
-
-    struct PlatformKeyboardEventArgs {
-        std::uint32_t key;
+    
+    struct KeyboardEventArgs {
+        KeyboardKey key;
+        bool alt;
+        bool shift;
+        bool ctrl;
     };
-
-    struct PlatformMouseEventArgs {
+    
+    struct MouseEventArgs {
         mutable float coordinateX;
         mutable float coordinateY;
         bool  isLeftButtonPressed;
         bool  isRightButtonPressed;
     };
-
-    using PlatformCallbackToken = struct {} *;
-
+    
+    struct TouchEventArgs {
+        float coordinateX;
+        float coordinateY;
+        std::size_t touchID;
+    };
+    
+    struct GamepadEventArgs {
+    
+    };
+    
+    using EventHandlersToken = struct {} *;
+    
     // Interface provides low-level core methods
     //
     class PlatformInterface {
     public:
-        static std::shared_ptr<PlatformInterface> makeInstance();
-        virtual ~PlatformInterface() {}
         PlatformInterface() = default;
-
+        virtual ~PlatformInterface() {}
+        
     public:
+        // Thread-safe logging
         virtual void logInfo(const char *fmt, ...) = 0;
         virtual void logWarning(const char *fmt, ...) = 0;
         virtual void logError(const char *fmt, ...) = 0;
-
-        // Forming vector of file pathes
-        // @dirPath  - target directory
-        // @return   - vector of pathes. Example: "data/map1"
+        
+        // Forms std::vector of file paths in @dirPath
+        // @dirPath  - target directory. Example: "data/map1"
+        // @return   - vector of paths
         //
         virtual std::vector<std::string> formFileList(const char *dirPath) const = 0;
-
-        // Load file to memory
+        
+        // Loads file to memory
         // @filePath - file path. Example: "data/map1/test.png"
-        // @return   - true if file successfully loaded
+        // @return   - true if file successfully loaded. Items returned by formFileList should be successfully loaded.
         //
-        virtual bool loadFile(const char *filePath, std::unique_ptr<unsigned char []> &data, std::size_t &size) const = 0;
-
-        // Getting native screen size in pixels
+        virtual bool loadFile(const char *filePath, std::unique_ptr<uint8_t[]> &data, std::size_t &size) const = 0;
+        
+        // Returns native screen size in pixels
         //
         virtual float getNativeScreenWidth() const = 0;
         virtual float getNativeScreenHeight() const = 0;
-
-        // Connecting render with native window
+        
+        // Connecting render with native window. Used by Platform.
         // @context  - platform-dependent handle (ID3D11Device * for windows, EAGLContext * for ios, etc)
         // @return   - platform-dependent result (IDXGISwapChain * for windows)
         //
         virtual void *setNativeRenderingContext(void *context) = 0;
-
+        
+        // Show/hide PC mouse pointer
         virtual void showCursor() = 0;
         virtual void hideCursor() = 0;
-
-        virtual PlatformCallbackToken addKeyboardCallbacks(
-            std::function<void(const PlatformKeyboardEventArgs &)> &&down,
-            std::function<void(const PlatformKeyboardEventArgs &)> &&up
-        ) = 0;
-
-        // Set callbacks for mouse/pointer movement
-        // When @move called coordinateX/coordinateY can be replaced with user's value (Platform will set new pointer coordinates)
+        
+        // Show/hide keyboard on mobile devices
+        virtual void showKeyboard() = 0;
+        virtual void hideKeyboard() = 0;
+        
+        // Set handlers for PC keyboard
+        // @return nullptr if is not supported
         //
-        virtual PlatformCallbackToken addMouseCallbacks(
-            std::function<void(const PlatformMouseEventArgs &)> &&press,
-            std::function<void(const PlatformMouseEventArgs &)> &&move,
-            std::function<void(const PlatformMouseEventArgs &)> &&release
+        virtual EventHandlersToken addKeyboardEventHandlers(
+            std::function<void(const KeyboardEventArgs &)> &&down,
+            std::function<void(const KeyboardEventArgs &)> &&up
         ) = 0;
-
-        virtual void removeCallbacks(PlatformCallbackToken& token) = 0;
-
+        
+        // Set handlers for User's input (physical or virtual keyboard)
+        // @return nullptr if is not supported
+        //
+        virtual EventHandlersToken addInputEventHandlers(
+            std::function<void(const char (&utf8char)[4])> &&input,
+            std::function<void()> &&backspace
+        ) = 0;
+        
+        // Set handlers for PC mouse
+        // coordinateX/coordinateY of MouseEventArgs struct can be replaced with user's value (Platform will set new pointer coordinates)
+        // @return nullptr if is not supported
+        //
+        virtual EventHandlersToken addMouseEventHandlers(
+            std::function<void(const MouseEventArgs &)> &&press,
+            std::function<void(const MouseEventArgs &)> &&move,
+            std::function<void(const MouseEventArgs &)> &&release
+        ) = 0;
+        
+        // Set handlers for touch
+        // @return nullptr if is not supported
+        //
+        virtual EventHandlersToken addTouchEventHandlers(
+            std::function<void(const TouchEventArgs &)> &&start,
+            std::function<void(const TouchEventArgs &)> &&move,
+            std::function<void(const TouchEventArgs &)> &&finish
+        ) = 0;
+        
+        // Set handlers for gamepad
+        // @return nullptr if is not supported
+        //
+        virtual EventHandlersToken addGamepadEventHandlers(
+            std::function<void(const GamepadEventArgs &)> &&buttonPress,
+            std::function<void(const GamepadEventArgs &)> &&buttonRelease
+        ) = 0;
+        
         // Start platform update cycle
         // This method blocks execution until application exit
+        // Depending on the app state, 'draw' may or may not be called
         //
-        virtual void run(std::function<void(float)> &&updateAndDraw) = 0;
-
+        virtual void run(
+            std::function<void(float)> &&update,
+            std::function<void()> &&draw
+        ) = 0;
+        
+        // Remove handlers of any type
+        //
+        virtual void removeEventHandlers(EventHandlersToken token) = 0;
+        
+        // Breaks platform update cycle
+        //
+        virtual void exit() = 0;
+        
     private:
         PlatformInterface(PlatformInterface &&) = delete;
         PlatformInterface(const PlatformInterface &) = delete;
         PlatformInterface &operator =(PlatformInterface &&) = delete;
         PlatformInterface &operator =(const PlatformInterface &) = delete;
     };
-
-    struct RenderShaderInput {
+    
+    // Interface provides Audio control methods
+    //
+    class AudioDeviceInterface {
+    public:
+        AudioDeviceInterface() = default;
+        virtual ~AudioDeviceInterface() {}
+        
+    public:
+        
+    private:
+        AudioDeviceInterface(AudioDeviceInterface &&) = delete;
+        AudioDeviceInterface(const AudioDeviceInterface &) = delete;
+        AudioDeviceInterface &operator =(AudioDeviceInterface &&) = delete;
+        AudioDeviceInterface &operator =(const AudioDeviceInterface &) = delete;
+    };
+    
+    // Field description for Vertex Shader input struct
+    //
+    struct ShaderInput {
         enum class Format {
             VERTEX_ID = 0,
             HALF2, HALF4,
@@ -103,87 +186,77 @@ namespace native {
             BYTE4_NRM,
             INTEGER1, INTEGER2, INTEGER3, INTEGER4,
         };
-
+        
         const char *name;
         Format format;
         bool perInstance = false;
     };
-
-    struct RenderShader {
-        struct Data;
-        struct Data *_data;
-
-        RenderShader();
-        RenderShader(Data *);
-        ~RenderShader();
-
-        RenderShader(RenderShader &&);
-        RenderShader& operator =(RenderShader &&);
-
-        RenderShader(const RenderShader &) = delete;
-        RenderShader& operator =(const RenderShader &) = delete;
+    
+    class Shader {
+    public:
+        Shader() = default;
+        virtual ~Shader() {}
+        
+    protected:
+        Shader(Shader &&) = delete;
+        Shader(const Shader &) = delete;
+        Shader& operator =(Shader &&) = delete;
+        Shader& operator =(const Shader &) = delete;
     };
-
-    struct RenderTexture {
-        struct Data;
-        struct Data *_data;
-
+    
+    class Texture2D {
+    public:
         enum class Format {
             RGBA8UN = 0,    // rgba 1 byte per channel normalized to [0..1]
             R8UN = 1,       // 1 byte grayscale normalized to [0..1]. In shader .r component is used
         };
-
-        RenderTexture();
-        RenderTexture(Data *);
-        ~RenderTexture();
-
-        RenderTexture(RenderTexture &&);
-        RenderTexture& operator =(RenderTexture &&);
-
-        RenderTexture(const RenderTexture &) = delete;
-        RenderTexture& operator =(const RenderTexture &) = delete;
-
-        std::uint32_t getWidth() const;
-        std::uint32_t getHeight() const;
-        std::uint32_t getMipCount() const;
+        
+        Texture2D() = default;
+        virtual ~Texture2D() {}
+        
+        virtual std::uint32_t getWidth() const = 0;
+        virtual std::uint32_t getHeight() const = 0;
+        virtual std::uint32_t getMipCount() const = 0;
+        
+    protected:
+        Texture2D(Texture2D &&) = delete;
+        Texture2D(const Texture2D &) = delete;
+        Texture2D& operator =(Texture2D &&) = delete;
+        Texture2D& operator =(const Texture2D &) = delete;
     };
-
-    struct RenderGeometry {
+    
+    class Geometry {
+    public:
         enum class Topology {
             LINES = 0,
             LINESTRIP,
             TRIANGLES,
             TRIANGLESTRIP,
         };
-
-        struct Data;
-        struct Data *_data;
-
-        RenderGeometry();
-        RenderGeometry(Data *);
-        ~RenderGeometry();
-
-        RenderGeometry(RenderGeometry &&);
-        RenderGeometry& operator =(RenderGeometry &&);
-
-        RenderGeometry(const RenderGeometry &) = delete;
-        RenderGeometry& operator =(const RenderGeometry &) = delete;
-
-        std::uint32_t getCount() const;
-        std::uint32_t getStride() const;
+        
+        Geometry() = default;
+        virtual ~Geometry() {}
+        
+        virtual std::uint32_t getCount() const = 0;
+        virtual std::uint32_t getStride() const = 0;
+        
+    protected:
+        Geometry(Geometry &&) = delete;
+        Geometry(const Geometry &) = delete;
+        Geometry& operator =(Geometry &&) = delete;
+        Geometry& operator =(const Geometry &) = delete;
     };
-
+    
     // Interface provides 3D-visualization methods
     //
-    class RenderInterface {
+    class RenderingDeviceInterface {
     public:
-        static std::shared_ptr<RenderInterface> makeInstance(const std::shared_ptr<PlatformInterface> &platform);
-        virtual ~RenderInterface() {}
-        RenderInterface() = default;
-
+        RenderingDeviceInterface() = default;
+        virtual ~RenderingDeviceInterface() {}
+        
     public:
         virtual void updateCameraTransform(const float (&camPos)[3], const float(&camDir)[3], const float(&camVP)[16]) = 0;
-
+        
         // Create shader from source text
         // @input       - input layout for vertex shader (access through 'input' variable)
         // @shadersrc   - generic shader source text. Example:
@@ -216,51 +289,56 @@ namespace native {
         // Global functions:
         //     _mul(v|m, v), _sign(s), _dot(v, v), _norm(v), _tex2D(v)
         //
-        virtual RenderShader createShader(const std::initializer_list<RenderShaderInput> &input, const char *shadersrc, const char *name) = 0;
-
+        virtual Shader createShader(const std::initializer_list<ShaderInput> &input, const char *shadersrc, const char *name) = 0;
+        
         // Create texture from binary data
         // @imgMipsBinaryData - array of pointers. Each [i] pointer represents binary data for i'th mip and cannot be nullptr
         //
-        virtual RenderTexture createTexture(RenderTexture::Format format, std::uint32_t width, std::uint32_t height, std::uint32_t mipCount, const std::uint8_t *const *imgMipsBinaryData = nullptr) = 0;
-
+        virtual Texture2D createTexture(Texture2D::Format format, std::uint32_t width, std::uint32_t height, std::uint32_t mipCount, const std::uint8_t *const *imgMipsBinaryData = nullptr) = 0;
+        
         // Create geometry
         // @data        - pointer to data (array of structures)
         // @count       - count of structures in array
         // @stride      - size of struture
         // @return      - handle
         //
-        virtual RenderGeometry createGeometry(const void *data, std::uint32_t count, std::uint32_t stride) = 0;
-
+        virtual Geometry createGeometry(const void *data, std::uint32_t count, std::uint32_t stride) = 0;
+        
         // Apply shader
         // @shader      - shader handle
         // @constants   - pointers to data for 'const' blocks. constData[i] can be nullptr (constants will not be updated, but set)
         //
-        virtual void applyShader(const RenderShader &shader, const std::initializer_list<const void *> &constants = {}) = 0;
-
+        virtual void applyShader(const Shader &shader, const std::initializer_list<const void *> &constants = {}) = 0;
+        
         // Update data of shader constants. Shader will not be set.
         // @shader      - shader handle
         // @constants   - pointers to data for 'const' blocks. constData[i] can be nullptr (constants will not be updated, but set)
         //
-        virtual void applyShaderConstants(const RenderShader &shader, const std::initializer_list<const void *> &constants = {}) = 0;
-
+        virtual void applyShaderConstants(const Shader &shader, const std::initializer_list<const void *> &constants = {}) = 0;
+        
         // Apply textures. textures[i] can be nullptr (texture will not be set)
         //
-        virtual void applyTextures(const std::initializer_list<const RenderTexture *> &textures) = 0;
-
+        virtual void applyTextures(const std::initializer_list<const Texture2D *> &textures) = 0;
+        
         // Draw geometry
         // @geometry - geometry, can be nullptr
         //
-        virtual void drawGeometry(const RenderGeometry *geometry, std::uint32_t vertexCount, std::uint32_t instanceCount, RenderGeometry::Topology topology = RenderGeometry::Topology::TRIANGLES) = 0;
-        //virtual void debugDrawLine(const math::vector3f &position, const math::vector3f &to, const math::color &color) = 0;
-        //virtual void debugDrawCircle(const math::vector3f &position, float radius, const math::color &color) = 0;
-
+        virtual void drawGeometry(const Geometry *geometry, std::uint32_t vertexCount, std::uint32_t instanceCount, Geometry::Topology topology = Geometry::Topology::TRIANGLES) = 0;
+        
         virtual void prepareFrame() = 0;
         virtual void presentFrame(float dt) = 0;
-
+        
+        virtual void getLastFrameRendered() = 0;
+        
     private:
-        RenderInterface(RenderInterface &&) = delete;
-        RenderInterface(const RenderInterface &) = delete;
-        RenderInterface &operator =(RenderInterface &&) = delete;
-        RenderInterface &operator =(const RenderInterface &) = delete;
+        RenderingDeviceInterface(RenderingDeviceInterface &&) = delete;
+        RenderingDeviceInterface(const RenderingDeviceInterface &) = delete;
+        RenderingDeviceInterface &operator =(RenderingDeviceInterface &&) = delete;
+        RenderingDeviceInterface &operator =(const RenderingDeviceInterface &) = delete;
     };
+    
+    std::shared_ptr<PlatformInterface> getPlatformInstance();
+    std::shared_ptr<AudioDeviceInterface> getAudioDeviceInstance(const std::shared_ptr<PlatformInterface> &platform);
+    std::shared_ptr<RenderingDeviceInterface> getRenderingDeviceInstance(const std::shared_ptr<PlatformInterface> &platform);
 }
+
