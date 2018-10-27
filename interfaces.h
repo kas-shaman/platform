@@ -18,6 +18,7 @@ namespace platform {
         LEFT, RIGHT, UP, DOWN,
         SPACE, ENTER, TAB,
         F1, F2, F3, F4, F5, F6, F7, F8, F9, F10,
+        _count
     };
     
     struct KeyboardEventArgs {
@@ -76,7 +77,7 @@ namespace platform {
         virtual float getNativeScreenWidth() const = 0;
         virtual float getNativeScreenHeight() const = 0;
         
-        // Connecting render with native window. Used by Platform.
+        // Connecting render with native window. Used by RenderingDevice. Must be called before run()
         // @context  - platform-dependent handle (ID3D11Device * for windows, EAGLContext * for ios, etc)
         // @return   - platform-dependent result (IDXGISwapChain * for windows)
         //
@@ -172,6 +173,16 @@ namespace platform {
         AudioDeviceInterface &operator =(AudioDeviceInterface &&) = delete;
         AudioDeviceInterface &operator =(const AudioDeviceInterface &) = delete;
     };
+
+    // Topology of vertex data
+    //
+    enum class Topology {
+        LINES = 0,
+        LINESTRIP,
+        TRIANGLES,
+        TRIANGLESTRIP,
+        _count
+    };
     
     // Field description for Vertex Shader input struct
     //
@@ -185,19 +196,18 @@ namespace platform {
             BYTE4,
             BYTE4_NRM,
             INTEGER1, INTEGER2, INTEGER3, INTEGER4,
+            _count
         };
         
         const char *name;
         Format format;
-        bool perInstance = false;
     };
     
     class Shader {
     public:
-        Shader() = default;
-        virtual ~Shader() {}
+        Shader() {}
         
-    protected:
+    private:
         Shader(Shader &&) = delete;
         Shader(const Shader &) = delete;
         Shader& operator =(Shader &&) = delete;
@@ -209,42 +219,35 @@ namespace platform {
         enum class Format {
             RGBA8UN = 0,    // rgba 1 byte per channel normalized to [0..1]
             R8UN = 1,       // 1 byte grayscale normalized to [0..1]. In shader .r component is used
+            _count
         };
         
-        Texture2D() = default;
-        virtual ~Texture2D() {}
+        Texture2D() {}
         
-        virtual std::uint32_t getWidth() const = 0;
-        virtual std::uint32_t getHeight() const = 0;
-        virtual std::uint32_t getMipCount() const = 0;
+        std::uint32_t getWidth() const;
+        std::uint32_t getHeight() const;
+        std::uint32_t getMipCount() const;
+        Texture2D::Format getFormat() const;
         
-    protected:
+    private:
         Texture2D(Texture2D &&) = delete;
         Texture2D(const Texture2D &) = delete;
         Texture2D& operator =(Texture2D &&) = delete;
         Texture2D& operator =(const Texture2D &) = delete;
     };
     
-    class Geometry {
+    class StructuredData {
     public:
-        enum class Topology {
-            LINES = 0,
-            LINESTRIP,
-            TRIANGLES,
-            TRIANGLESTRIP,
-        };
+        StructuredData() {}
         
-        Geometry() = default;
-        virtual ~Geometry() {}
+        std::uint32_t getCount() const;
+        std::uint32_t getStride() const;
         
-        virtual std::uint32_t getCount() const = 0;
-        virtual std::uint32_t getStride() const = 0;
-        
-    protected:
-        Geometry(Geometry &&) = delete;
-        Geometry(const Geometry &) = delete;
-        Geometry& operator =(Geometry &&) = delete;
-        Geometry& operator =(const Geometry &) = delete;
+    private:
+        StructuredData(StructuredData &&) = delete;
+        StructuredData(const StructuredData &) = delete;
+        StructuredData& operator =(StructuredData &&) = delete;
+        StructuredData& operator =(const StructuredData &) = delete;
     };
     
     // Interface provides 3D-visualization methods
@@ -258,43 +261,61 @@ namespace platform {
         virtual void updateCameraTransform(const float (&camPos)[3], const float(&camDir)[3], const float(&camVP)[16]) = 0;
         
         // Create shader from source text
-        // @input       - input layout for vertex shader (access through 'input' variable)
-        // @shadersrc   - generic shader source text. Example:
+        // @vertex    - input layout for vertex shader (all such variables have 'vertex_' prefix)
+        // @instance  - input layout for vertex shader (all such variables have 'instance_' prefix)
+        // @prmnt     - pointer to data for the block of permanent constants (Can be nullptr in case of )
+        // @shadersrc - generic shader source text. Example:
         // s--------------------------------------
-        //     const {                          - [0] block of constants
-        //         constName0 : float4            - 
+        //     prmnt {                          - block of permanent constants. Can be omitted if unused.
+        //         constName0 : float4          -
         //     }
-        //     const {                          - [1] block of constants
+        //     const {                          - block of per-apply constants. Can be omitted if unused.
+        //         constName1 : float4          -
         //         constNames[16] : float4      - spaces in/before array braces are not permitted
         //     }
-        //     inter {                          - vertex output is same as fragment input
-        //         varName4 : float4            - vertex output also have float4 'position' variable
+        //     inter {                          - vertex output/fragment input. Can be omitted if unused.
+        //         varName4 : float4            - vertex shader also has float4 'out_position' variable
         //     }
-        //     vssrc {
-        //         output.varName4 = input.varName + varName0;
-        //         output.position = _mul(_VP, float4(input.varName3, 1.0));
+        //     vssrc {                          - assume that input = {{"position", ShaderInput::Format::FLOAT4}, {"color", ShaderInput::Format::BYTE4_NRM}};
+        //         inter.varName4 = vertex_color;
+        //         out_position = _mul(_viewProjMatrix, float4(vertex_position, 1.0));
         //     }
-        //     fssrc {                          - fragment output have float4 'color' variable
-        //         output.color = input.varName4;
+        //     fssrc {                          - fragment shader also has float4 'out_color' variable
+        //         out_color = input.varName4;
         //     }
         // s--------------------------------------
         // Types:
-        //     matrix, float1, float2, float3, float4, int1, int2, int3, int4
+        //     matrix4, matrix3, float1, float2, float3, float4, int1, int2, int3, int4, uint1, uint2, uint3, uint4
         //
         // Per frame global constants:
-        //     _VP      - view * projection matrix
-        //     _CamPos  - camera position
-        //     _CamDir  - normalized camera direction
+        //     _renderTargetBounds : float2 - render target size in pixels
+        //     _viewProjMatrix     : matrix - view * projection matrix
+        //     _cameraPosition     : float4 - camera position (w = 1)
+        //     _cameraDirection    : float4 - normalized camera direction (w = 0)
+        //
+        // Textures:
+        //     _textures[8] - array of 8 texture slots. Example: float4 color = _tex2d(_textures[0], float2(0, 0));
         //
         // Global functions:
-        //     _mul(v|m, v), _sign(s), _dot(v, v), _norm(v), _tex2D(v)
+        //     _transform(v|m, v), _sign(s), _dot(v, v), _norm(v), _tex2d(t, v)
         //
-        virtual Shader createShader(const std::initializer_list<ShaderInput> &input, const char *shadersrc, const char *name) = 0;
+        virtual std::unique_ptr<Shader> createShader(
+            const char *shadersrc,
+            const std::initializer_list<ShaderInput> &vertex,
+            const std::initializer_list<ShaderInput> &instance = {},
+            const void *prmnt = nullptr
+        ) = 0;
         
         // Create texture from binary data
-        // @imgMipsBinaryData - array of pointers. Each [i] pointer represents binary data for i'th mip and cannot be nullptr
+        // @w and @h    - width and height of the 0th mip layer
+        // @imgMipsData - array of pointers. Each [i] pointer represents binary data for i'th mip and cannot be nullptr
         //
-        virtual Texture2D createTexture(Texture2D::Format format, std::uint32_t width, std::uint32_t height, std::uint32_t mipCount, const std::uint8_t *const *imgMipsBinaryData = nullptr) = 0;
+        virtual std::unique_ptr<Texture2D> createTexture(
+            Texture2D::Format format,
+            std::uint32_t width,
+            std::uint32_t height,
+            const std::initializer_list<const std::uint8_t *> &mipsData = {}
+        ) = 0;
         
         // Create geometry
         // @data        - pointer to data (array of structures)
@@ -302,33 +323,33 @@ namespace platform {
         // @stride      - size of struture
         // @return      - handle
         //
-        virtual Geometry createGeometry(const void *data, std::uint32_t count, std::uint32_t stride) = 0;
+        virtual std::unique_ptr<StructuredData> createData(const void *data, std::uint32_t count, std::uint32_t stride) = 0;
+        
+        // TODO: render states
         
         // Apply shader
-        // @shader      - shader handle
-        // @constants   - pointers to data for 'const' blocks. constData[i] can be nullptr (constants will not be updated, but set)
+        // @shader      - shader object.
+        // @constants   - pointer to data for 'const' block. Can be nullptr (constants will not be set)
         //
-        virtual void applyShader(const Shader &shader, const std::initializer_list<const void *> &constants = {}) = 0;
-        
-        // Update data of shader constants. Shader will not be set.
-        // @shader      - shader handle
-        // @constants   - pointers to data for 'const' blocks. constData[i] can be nullptr (constants will not be updated, but set)
-        //
-        virtual void applyShaderConstants(const Shader &shader, const std::initializer_list<const void *> &constants = {}) = 0;
+        virtual void applyShader(const std::unique_ptr<Shader> &shader, const void *constants = nullptr) = 0;
         
         // Apply textures. textures[i] can be nullptr (texture will not be set)
         //
         virtual void applyTextures(const std::initializer_list<const Texture2D *> &textures) = 0;
         
-        // Draw geometry
-        // @geometry - geometry, can be nullptr
+        // Draw vertexes without geometry
         //
-        virtual void drawGeometry(const Geometry *geometry, std::uint32_t vertexCount, std::uint32_t instanceCount, Geometry::Topology topology = Geometry::Topology::TRIANGLES) = 0;
+        virtual void drawGeometry(std::uint32_t vertexCount, Topology topology = Topology::TRIANGLES) = 0;
+        
+        // TODO: draw indexed geometry
         
         virtual void prepareFrame() = 0;
         virtual void presentFrame(float dt) = 0;
         
-        virtual void getLastFrameRendered() = 0;
+        // Get last rendered frame as a bitmap in memory
+        // @imgFrame - array of size = PlatformInterface::getNativeScreenWidth * PlatformInterface::getNativeScreenHeight * 4
+        //
+        virtual void getFrameBufferData(std::uint8_t *imgFrame) = 0;
         
     private:
         RenderingDeviceInterface(RenderingDeviceInterface &&) = delete;

@@ -220,6 +220,8 @@ namespace platform {
         
         _nativeScreenWidth = float(bounds.size.width * scale);
         _nativeScreenHeight = float(bounds.size.height * scale);
+        
+        logInfo("Platform: OK");
     }
     IOSPlatform::~IOSPlatform() {}
     
