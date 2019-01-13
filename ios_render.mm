@@ -10,12 +10,11 @@
 #import  <OpenGLES/ES3/gl.h>
 #import  <OpenGLES/ES3/glext.h>
 
-#define GLCHECK(...) __VA_ARGS__; if (auto error = glGetError()) { _platform->logError("GL Error : 0x%X", error); }
+#define GLCHECK(...) __VA_ARGS__; if (auto error = glGetError()) { _platform->logError("[Render] GL Error : 0x%X", error); }
 
 namespace {
     static constexpr std::size_t SHADER_LINES_MAX = 1024;
     static constexpr std::size_t SHADER_CONST_STREAM_BUFFER_SIZE = 64 * 1024;
-    
     static constexpr std::size_t SHADER_BIND_FRAME_DATA = 0;
     static constexpr std::size_t SHADER_BIND_PERMANENT_CONST = 1;
     static constexpr std::size_t SHADER_BIND_CONSTANTS = 2;
@@ -37,6 +36,32 @@ namespace {
         {GL_RGBA8, GL_RGBA},
         {GL_R8, GL_RED}
     };
+    
+    struct NativeVertexAttribFormat {
+        GLint       componentCount;
+        GLenum      componentType;
+        GLboolean   normalized;
+        std::size_t size;
+    }
+    _nativeVertexAttribFormat[unsigned(platform::ShaderInput::Format::_count)] = {
+        {},
+        {2, GL_HALF_FLOAT, GL_FALSE, 4},
+        {4, GL_HALF_FLOAT, GL_FALSE, 8},
+        {1, GL_FLOAT, GL_FALSE, 4},
+        {2, GL_FLOAT, GL_FALSE, 8},
+        {3, GL_FLOAT, GL_FALSE, 12},
+        {4, GL_FLOAT, GL_FALSE, 16},
+        {2, GL_SHORT, GL_FALSE, 4},
+        {4, GL_SHORT, GL_FALSE, 8},
+        {2, GL_SHORT, GL_TRUE, 4},
+        {4, GL_SHORT, GL_TRUE, 8},
+        {4, GL_BYTE, GL_FALSE, 4},
+        {4, GL_BYTE, GL_TRUE, 4},
+        {1, GL_INT, GL_FALSE, 4},
+        {2, GL_INT, GL_FALSE, 8},
+        {3, GL_INT, GL_FALSE, 12},
+        {4, GL_INT, GL_FALSE, 16},
+    };
 }
 
 namespace platform {
@@ -47,20 +72,28 @@ namespace platform {
             const char **vsrc, GLint *vlen, std::size_t vcnt,
             const char **fsrc, GLint *flen, std::size_t fcnt,
             std::vector<ShaderInput> &&vertexLayout,
+            std::vector<ShaderInput> &&instanceLayout,
             const void *permanentConstBlockData,
             std::size_t permanentConstBlockSize,
             std::size_t constantsBlockSize
 
-        ) : _platform(platform), _vertexLayout(std::move(vertexLayout)), _permanentConstBlockSize(permanentConstBlockSize), _constantsBlockSize(constantsBlockSize) {
+        ) : _platform(platform),
+            _vertexLayout(std::move(vertexLayout)),
+            _instanceLayout(std::move(instanceLayout)),
+            _permanentConstBlockSize(permanentConstBlockSize),
+            _constantsBlockSize(constantsBlockSize)
+        {
         
             struct fn {
                 static void printLinedShader(const std::shared_ptr<PlatformInterface> &platform, const char **src, GLint *len, std::size_t cnt) {
                     char buffer[256] = {0};
+                    platform->logError("[Render] --------------------------------");
                     for (std::size_t i = 0; i < cnt; i++) {
                         std::memcpy(buffer, src[i], len[i]);
                         buffer[len[i] - 1] = 0;
                         platform->logError("%03zu |%s", i + 1, buffer);
                     }
+                    platform->logError("-----------------------------------------");
                 }
             };
         
@@ -97,9 +130,8 @@ namespace platform {
                     if (status == GL_TRUE) {
                         GLuint index;
                         
-                fn::printLinedShader(platform, vsrc, vlen, vcnt);
-                                    fn::printLinedShader(platform, fsrc, flen, fcnt);
-
+                        //fn::printLinedShader(platform, vsrc, vlen, vcnt);
+                        //fn::printLinedShader(platform, fsrc, flen, fcnt);
 
                         if ((index = glGetUniformBlockIndex(program, "_FrameData")) != GL_INVALID_INDEX) {
                             GLCHECK(glUniformBlockBinding(program, index, SHADER_BIND_FRAME_DATA));
@@ -110,17 +142,6 @@ namespace platform {
                         if ((index = glGetUniformBlockIndex(program, "_Constants")) != GL_INVALID_INDEX) {
                             GLCHECK(glUniformBlockBinding(program, index, SHADER_BIND_CONSTANTS));
                         }
-
-                        //GLCHECK(glUniformBlockBinding(program, glGetUniformBlockIndex(program, "_FrameData"), SHADER_BIND_FRAME_DATA));
-                        //GLCHECK(glUniformBlockBinding(program, glGetUniformBlockIndex(program, "_Permanent"), SHADER_BIND_PERMANENT_CONST));
-                        //GLCHECK(glUniformBlockBinding(program, glGetUniformBlockIndex(program, "_Constants"), SHADER_BIND_CONSTANTS));
-                        //for (unsigned i = 0; i < __UBO_NAMES_COUNT; i++) {
-                        //    GLuint uboPos = glcall(glGetUniformBlockIndex, program, __uboNames[i]);
-                        //
-                        //    if(uboPos != GL_INVALID_INDEX) {
-                        //        glcall(glUniformBlockBinding, program, uboPos, i);
-                        //    }
-                        //}
                         //
                         //glcall(glUseProgram, program);
                         //
@@ -147,21 +168,20 @@ namespace platform {
                     else {
                         GLCHECK(glGetProgramInfoLog(program, BUFFER_MAX - 1, &length, errorBuffer));
                         fn::printLinedShader(platform, vsrc, vlen, vcnt);
-                        _platform->logError("---");
                         fn::printLinedShader(platform, fsrc, flen, fcnt);
-                        _platform->logError("shader linking failed: %s", errorBuffer);
+                        _platform->logError("[Render] shader linking failed: %s", errorBuffer);
                     }
                 }
                 else {
                     GLCHECK(glGetShaderInfoLog(fshader, BUFFER_MAX - 1, &length, errorBuffer));
                     fn::printLinedShader(platform, fsrc, flen, fcnt);
-                    _platform->logError("fragment shader compilation failed: %s", errorBuffer);
+                    _platform->logError("[Render] fragment shader compilation failed: %s", errorBuffer);
                 }
             }
             else {
                 GLCHECK(glGetShaderInfoLog(vshader, BUFFER_MAX - 1, &length, errorBuffer));
                 fn::printLinedShader(platform, vsrc, vlen, vcnt);
-                _platform->logError("vertex shader compilation failed: %s", errorBuffer);
+                _platform->logError("[Render] vertex shader compilation failed: %s", errorBuffer);
             }
 
             GLCHECK(glDeleteShader(program));
@@ -178,6 +198,10 @@ namespace platform {
         
         const std::vector<ShaderInput> &getVertexLayout() const {
             return _vertexLayout;
+        }
+
+        const std::vector<ShaderInput> &getInstanceLayout() const {
+            return _instanceLayout;
         }
 
         GLuint getProgram() const {
@@ -198,6 +222,7 @@ namespace platform {
 
         std::shared_ptr<PlatformInterface> _platform;
         std::vector<ShaderInput> _vertexLayout;
+        std::vector<ShaderInput> _instanceLayout;
         std::size_t _permanentConstBlockSize;
         std::size_t _constantsBlockSize;
 
@@ -219,7 +244,12 @@ namespace platform {
             const NativeTexturFormat &nativeFormat,
             const std::initializer_list<const std::uint8_t *> &imgMipsData
             
-        ) : _platform(platform), _format(format), _width(w), _height(h), _mipCount(std::uint32_t(imgMipsData.size())) {
+        ) : _platform(platform),
+            _format(format),
+            _width(w),
+            _height(h),
+            _mipCount(std::uint32_t(imgMipsData.size()))
+        {
             
             GLCHECK(glGenTextures(1, &_texture));
             GLCHECK(glBindTexture(GL_TEXTURE_2D, _texture));
@@ -299,6 +329,10 @@ namespace platform {
             GLCHECK(glDeleteBuffers(1, &_vbo));
         }
 
+        GLuint getBuffer() const {
+            return _vbo;
+        }
+
         std::shared_ptr<PlatformInterface> _platform;
         std::uint32_t _count;
         std::uint32_t _stride;
@@ -333,7 +367,9 @@ namespace platform {
     }
 
     void IOSRender::updateCameraTransform(const float (&camPos)[3], const float(&camDir)[3], const float(&camVP)[16]) {
-        
+        ::memcpy(_frameData.cameraPosition, camPos, 3 * sizeof(float));
+        ::memcpy(_frameData.cameraDirection, camDir, 3 * sizeof(float));
+        ::memcpy(_frameData.viewProjMatrix, camVP, 16 * sizeof(float));
     }
 
     template <typename = void> std::istream &expect(std::istream &stream) {
@@ -351,20 +387,10 @@ namespace platform {
             std::size_t size;
         }
         typeSizeTable[] = {
-            //{"float1", "float", 4},
-            //{"float2", "vec2",  8},
-            //{"float3", "vec3",  12},
             {"float4", "vec4",  16},
-            //{"int1",   "int",   4},
-            //{"int2",   "ivec2", 8},
-            //{"int3",   "ivec3", 12},
             {"int4",   "ivec4", 16},
-            //{"uint1",  "uint",  4},
-            //{"uint2",  "uvec2", 8},
-            //{"uint3",  "uvec3", 12},
             {"uint4",  "uvec4", 16},
             {"matrix4", "mat4", 64},
-            //{"matrix3", "mat3", 36},
         };
         
         int  multiply = 1;
@@ -398,10 +424,12 @@ namespace platform {
             {ShaderInput::Format::FLOAT2, "vec2"},
             {ShaderInput::Format::FLOAT3, "vec3"},
             {ShaderInput::Format::FLOAT4, "vec4"},
-            {ShaderInput::Format::SHORT2, "int2"},
-            {ShaderInput::Format::SHORT4, "int4"},
+            {ShaderInput::Format::SHORT2, "ivec2"},
+            {ShaderInput::Format::SHORT4, "ivec4"},
             {ShaderInput::Format::SHORT2_NRM, "vec2"},
             {ShaderInput::Format::SHORT4_NRM, "vec4"},
+            {ShaderInput::Format::BYTE4, "ivec4"},
+            {ShaderInput::Format::BYTE4_NRM, "vec4"},
         };
         
         for (const auto &fmt : formatTable) {
@@ -448,13 +476,13 @@ namespace platform {
 //        return true;
 //    }
     
-    std::unique_ptr<Shader> IOSRender::createShader(
+    std::shared_ptr<Shader> IOSRender::createShader(
         const char *shadersrc,
         const std::initializer_list<ShaderInput> &vertex,
         const std::initializer_list<ShaderInput> &instance,
         const void *prmnt
     ) {
-        std::unique_ptr<Shader> result;
+        std::shared_ptr<Shader> result;
     
         std::string varname, arg;
         std::string shaderConsts;
@@ -477,17 +505,19 @@ namespace platform {
         std::string vsDefines = "#define out_position gl_Position\n";
         std::string vsShader =
             "#version 300 es\n\n"
-            "#define _sign(a) sign(a)\n"
+            "#define _sign(a) (2.0 * step(0.0, a) - 1.0)\n"
             "#define _transform(a, b) (b * a)\n"
             "#define _dot(a, b) dot(a, b)\n"
+            "#define _cos(a) cos(a)\n"
+            "#define _sin(a) sin(a)\n"
             "#define _norm(a) normalize(a)\n"
             "#define _tex2d(a, b) texture(a, b)\n"
             "\n"
             "layout(std140) uniform _FrameData\n{\n"
-            "mediump vec4 _renderTargetBounds;\n"
             "mediump mat4 _viewProjMatrix;\n"
             "mediump vec4 _cameraPosition;\n"
             "mediump vec4 _cameraDirection;\n"
+            "mediump vec4 _renderTargetBounds;\n"
             "};\n"
             "\n";
     
@@ -498,10 +528,18 @@ namespace platform {
             const ShaderInput &current = *(vertex.begin() + i);
             
             if (current.format == ShaderInput::Format::VERTEX_ID) {
-                vsDefines += std::string("#define vertex_") + current.name + " gl_VertexID\n";
+                vsDefines += std::string("#define vertex_") + current.name + " gl_VertexID\n\n";
             }
             else {
-                vsInout += "in mediump " + shaderGetTypeName( current.format ) + " vertex_" + varname + ";\n";
+                vsInout += "in mediump " + shaderGetTypeName( current.format ) + " vertex_" + std::string(current.name) + ";\n";
+            }
+        }
+
+        for (std::size_t i = 0, cnt = instance.size(); i < cnt; i++) {
+            const ShaderInput &current = *(instance.begin() + i);
+            
+            if (current.format != ShaderInput::Format::VERTEX_ID) {
+                vsInout += "in mediump " + shaderGetTypeName( current.format ) + " instance_" + std::string(current.name) + ";\n";
             }
         }
 
@@ -518,20 +556,20 @@ namespace platform {
                             if (t2) t2->append("mediump " + arg + " " + varname + ";\n");
                         }
                         else {
-                            _platform->logError("shader : unknown type of constant '%s'", varname.c_str());
+                            _platform->logError("[Render] shader : unknown type of constant '%s'", varname.c_str());
                             error = true;
                             break;
                         }
                     }
                     else {
-                        _platform->logError("shader : constant block syntax error");
+                        _platform->logError("[Render] shader : constant block syntax error");
                         error = true;
                         break;
                     }
                 }
             }
             else {
-                _platform->logError("shader : only one '%s' block is allowed", blockName);
+                _platform->logError("[Render] shader : only one '%s' block is allowed", blockName);
                 error = true;
             }
             
@@ -553,7 +591,7 @@ namespace platform {
                             braceCounter--;
                         }
                         else {
-                            _platform->logError("shader '%s' : unexpected '}'", blockName);
+                            _platform->logError("[Render] shader '%s' : unexpected '}'", blockName);
                             error = true;
                             return false;
                         }
@@ -567,7 +605,7 @@ namespace platform {
                         dest += ch;
                     }
                     else {
-                        _platform->logError("shader '%s' : stream error", blockName);
+                        _platform->logError("[Render] shader '%s' : stream error", blockName);
                         error = true;
                         return false;
                     }
@@ -588,7 +626,7 @@ namespace platform {
                 return true;
             }
             else {
-                _platform->logError("shader : only one '%s' block is allowed", blockName);
+                _platform->logError("[Render] shader : only one '%s' block is allowed", blockName);
                 error = true;
                 return false;
             }
@@ -626,7 +664,7 @@ namespace platform {
                 }
             }
             else {
-                _platform->logError("shader : undefined block");
+                _platform->logError("[Render] shader : undefined block");
                 break;
             }
         }
@@ -656,11 +694,12 @@ namespace platform {
                 }
             }
             
-            result = std::make_unique<ShaderImp>(
+            result = std::make_shared<ShaderImp>(
                 _platform,
                 vsrc, vslen, vsLineCounter,
                 fsrc, fslen, fsLineCounter,
                 std::vector<ShaderInput>(vertex.begin(), vertex.end()),
+                std::vector<ShaderInput>(instance.begin(), instance.end()),
                 prmnt,
                 shaderPrmntSize,
                 shaderConstSize
@@ -670,15 +709,15 @@ namespace platform {
         return result;
     }
     
-    std::unique_ptr<Texture2D> IOSRender::createTexture(Texture2D::Format format, std::uint32_t w, std::uint32_t h, const std::initializer_list<const std::uint8_t *> &mipsData) {
+    std::shared_ptr<Texture2D> IOSRender::createTexture(Texture2D::Format format, std::uint32_t w, std::uint32_t h, const std::initializer_list<const std::uint8_t *> &mipsData) {
         return std::make_unique<Texture2DImp>(_platform, format, w, h, _nativeTextureFormatMap[std::size_t(format)], mipsData);
     }
     
-    std::unique_ptr<StructuredData> IOSRender::createData(const void *data, std::uint32_t count, std::uint32_t stride) {
+    std::shared_ptr<StructuredData> IOSRender::createData(const void *data, std::uint32_t count, std::uint32_t stride) {
         return std::make_unique<StructuredDataImp>(_platform, data, count, stride);
     }
     
-    void IOSRender::applyShader(const std::unique_ptr<Shader> &shader, const void *constants) {
+    void IOSRender::applyShader(const std::shared_ptr<Shader> &shader, const void *constants) {
         const ShaderImp *platformShader = static_cast<const ShaderImp *>(shader.get());
         
         if (platformShader) {
@@ -691,11 +730,11 @@ namespace platform {
                 
                 GLCHECK(glBindBuffer(GL_UNIFORM_BUFFER, _shaderConstStreamBuffer));
                 if (char *mapPtr = (char *)glMapBufferRange(GL_UNIFORM_BUFFER, _shaderConstStreamOffset, platformShader->getConstBlockSize(), GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT)) {
-                    memcpy(mapPtr, constants, 36); //platformShader->getConstBlockSize()
+                    memcpy(mapPtr, constants, platformShader->getConstBlockSize()); //
                     GLCHECK(glUnmapBuffer(GL_UNIFORM_BUFFER));
                 }
                 else {
-                    _platform->logError("Unable to map uniform buffer");
+                    _platform->logError("[Render] Unable to map uniform buffer");
                 }
                 GLCHECK(glBindBuffer(GL_UNIFORM_BUFFER, 0));
                 //GLCHECK(glBindBufferRange(GL_UNIFORM_BUFFER, SHADER_BIND_CONSTANTS, _shaderConstStreamBuffer, 0, platformShader->getConstBlockSize()));
@@ -705,6 +744,8 @@ namespace platform {
             GLCHECK(glBindBufferBase(GL_UNIFORM_BUFFER, SHADER_BIND_CONSTANTS, _shaderConstStreamBuffer));
             GLCHECK(glBindBufferBase(GL_UNIFORM_BUFFER, SHADER_BIND_FRAME_DATA, _shaderFrameDataBuffer));
             GLCHECK(glBindBufferBase(GL_UNIFORM_BUFFER, SHADER_BIND_PERMANENT_CONST, platformShader->getPermanentConstBlockBuffer()));
+        
+            _currentShader = shader;
         }
     }
     
@@ -720,7 +761,62 @@ namespace platform {
     }
     
     void IOSRender::drawGeometry(std::uint32_t vertexCount, Topology topology) {
-        GLCHECK(glDrawArrays(_topologyMap[std::size_t(topology)], 0, vertexCount));
+        GLCHECK(glBindBuffer(GL_ARRAY_BUFFER, 0));
+        GLCHECK(glDrawArrays(_topologyMap[unsigned(topology)], 0, vertexCount));
+    }
+    
+    void IOSRender::drawGeometry(
+        const std::shared_ptr<StructuredData> &vertexData,
+        const std::shared_ptr<StructuredData> &instanceData,
+        std::uint32_t vertexCount,
+        std::uint32_t instanceCount,
+        Topology topology
+    ) {
+        if (_currentShader) {
+            const ShaderImp *shaderImp = static_cast<const ShaderImp *>(_currentShader.get());
+            const std::vector<ShaderInput> &vertexDesc = shaderImp->getVertexLayout();
+            const std::vector<ShaderInput> &instanceDesc = shaderImp->getInstanceLayout();
+            
+            GLuint index = 0;
+
+            if (const StructuredDataImp *vertexDataImp = static_cast<const StructuredDataImp *>(vertexData.get())) {
+                GLCHECK(glBindBuffer(GL_ARRAY_BUFFER, vertexDataImp->getBuffer()));
+                
+                const char *offset = 0;
+                for (GLuint i = 0; i < vertexDesc.size(); i++) {
+                    if (vertexDesc[i].format != ShaderInput::Format::VERTEX_ID) {
+                        auto &format = _nativeVertexAttribFormat[unsigned(vertexDesc[i].format)];
+                        GLCHECK(glVertexAttribPointer(index, format.componentCount, format.componentType, format.normalized, vertexDataImp->getStride(), offset));
+                        GLCHECK(glVertexAttribDivisor(index, 0));
+                        GLCHECK(glEnableVertexAttribArray(index));
+                        offset += format.size;
+                        index++;
+                    }
+                }
+            }
+
+            if (const StructuredDataImp *instanceDataImp = static_cast<const StructuredDataImp *>(instanceData.get())) {
+                GLCHECK(glBindBuffer(GL_ARRAY_BUFFER, instanceDataImp->getBuffer()));
+
+                const char *offset = 0;
+                for (GLuint i = 0; i < instanceDesc.size(); i++) {
+                    if (instanceDesc[i].format != ShaderInput::Format::VERTEX_ID) {
+                        auto &format = _nativeVertexAttribFormat[unsigned(instanceDesc[i].format)];
+                        GLCHECK(glVertexAttribPointer(index, format.componentCount, format.componentType, format.normalized, instanceDataImp->getStride(), offset));
+                        GLCHECK(glVertexAttribDivisor(index, 1));
+                        GLCHECK(glEnableVertexAttribArray(index));
+                        offset += format.size;
+                        index++;
+                    }
+                }
+            }
+            
+            GLCHECK(glBindBuffer(GL_ARRAY_BUFFER, 0));
+            GLCHECK(glDrawArraysInstanced(_topologyMap[unsigned(topology)], 0, vertexCount, instanceCount));
+        }
+        else {
+            _platform->logWarning("[Render] drawGeometry requires shader set");
+        }
     }
     
     void IOSRender::prepareFrame() {
@@ -750,12 +846,12 @@ namespace platform {
         
             if (glContext) {
                 platform->setNativeRenderingContext((__bridge_retained void *)(glContext));
-                platform->logInfo("ES context: OK");
+                platform->logInfo("[Render] ES context: OK");
 
                 [EAGLContext setCurrentContext:glContext];
             }
             else {
-                platform->logError("Failed to create ES context");
+                platform->logError("[Render] Failed to create ES context");
             }
 
             _render = std::make_shared<platform::IOSRender>(platform);

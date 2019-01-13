@@ -12,6 +12,18 @@
 #include <functional>
 
 namespace platform {
+    struct Base {
+    protected:
+        Base() = default;
+        ~Base() = default;
+    
+    private:
+        Base(Base &&) = delete;
+        Base(const Base &) = delete;
+        Base &operator =(Base &&) = delete;
+        Base &operator =(const Base &) = delete;
+    };
+    
     enum class KeyboardKey {
         A = 0, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
         NUM0, NUM1, NUM2, NUM3, NUM4, NUM5, NUM6, NUM7, NUM8, NUM9,
@@ -49,7 +61,7 @@ namespace platform {
     
     // Interface provides low-level core methods
     //
-    class PlatformInterface {
+    class PlatformInterface : public Base {
     public:
         PlatformInterface() = default;
         virtual ~PlatformInterface() {}
@@ -64,13 +76,13 @@ namespace platform {
         // @dirPath  - target directory. Example: "data/map1"
         // @return   - vector of paths
         //
-        virtual std::vector<std::string> formFileList(const char *dirPath) const = 0;
+        virtual std::vector<std::string> formFileList(const char *dirPath) = 0;
         
         // Loads file to memory
         // @filePath - file path. Example: "data/map1/test.png"
         // @return   - true if file successfully loaded. Items returned by formFileList should be successfully loaded.
         //
-        virtual bool loadFile(const char *filePath, std::unique_ptr<uint8_t[]> &data, std::size_t &size) const = 0;
+        virtual bool loadFile(const char *filePath, std::unique_ptr<uint8_t[]> &data, std::size_t &size) = 0;
         
         // Returns native screen size in pixels
         //
@@ -150,28 +162,17 @@ namespace platform {
         // Breaks platform update cycle
         //
         virtual void exit() = 0;
-        
-    private:
-        PlatformInterface(PlatformInterface &&) = delete;
-        PlatformInterface(const PlatformInterface &) = delete;
-        PlatformInterface &operator =(PlatformInterface &&) = delete;
-        PlatformInterface &operator =(const PlatformInterface &) = delete;
     };
     
     // Interface provides Audio control methods
     //
-    class AudioDeviceInterface {
+    class AudioDeviceInterface : public Base {
     public:
         AudioDeviceInterface() = default;
         virtual ~AudioDeviceInterface() {}
         
     public:
         
-    private:
-        AudioDeviceInterface(AudioDeviceInterface &&) = delete;
-        AudioDeviceInterface(const AudioDeviceInterface &) = delete;
-        AudioDeviceInterface &operator =(AudioDeviceInterface &&) = delete;
-        AudioDeviceInterface &operator =(const AudioDeviceInterface &) = delete;
     };
 
     // Topology of vertex data
@@ -195,7 +196,7 @@ namespace platform {
             SHORT2_NRM, SHORT4_NRM,
             BYTE4,
             BYTE4_NRM,
-            INTEGER1, INTEGER2, INTEGER3, INTEGER4,
+            INT1, INT2, INT3, INT4,
             _count
         };
         
@@ -203,18 +204,12 @@ namespace platform {
         Format format;
     };
     
-    class Shader {
+    class Shader : public Base {
     public:
         Shader() {}
-        
-    private:
-        Shader(Shader &&) = delete;
-        Shader(const Shader &) = delete;
-        Shader& operator =(Shader &&) = delete;
-        Shader& operator =(const Shader &) = delete;
     };
     
-    class Texture2D {
+    class Texture2D : public Base {
     public:
         enum class Format {
             RGBA8UN = 0,    // rgba 1 byte per channel normalized to [0..1]
@@ -228,26 +223,14 @@ namespace platform {
         std::uint32_t getHeight() const;
         std::uint32_t getMipCount() const;
         Texture2D::Format getFormat() const;
-        
-    private:
-        Texture2D(Texture2D &&) = delete;
-        Texture2D(const Texture2D &) = delete;
-        Texture2D& operator =(Texture2D &&) = delete;
-        Texture2D& operator =(const Texture2D &) = delete;
     };
     
-    class StructuredData {
+    class StructuredData : public Base {
     public:
         StructuredData() {}
         
         std::uint32_t getCount() const;
         std::uint32_t getStride() const;
-        
-    private:
-        StructuredData(StructuredData &&) = delete;
-        StructuredData(const StructuredData &) = delete;
-        StructuredData& operator =(StructuredData &&) = delete;
-        StructuredData& operator =(const StructuredData &) = delete;
     };
     
     // Interface provides 3D-visualization methods
@@ -285,7 +268,7 @@ namespace platform {
         //     }
         // s--------------------------------------
         // Types:
-        //     matrix4, matrix3, float1, float2, float3, float4, int1, int2, int3, int4, uint1, uint2, uint3, uint4
+        //     matrix4, matrix3, float, float2, float3, float4, int, int2, int3, int4, uint, uint2, uint3, uint4
         //
         // Per frame global constants:
         //     _renderTargetBounds : float2 - render target size in pixels
@@ -297,9 +280,9 @@ namespace platform {
         //     _textures[8] - array of 8 texture slots. Example: float4 color = _tex2d(_textures[0], float2(0, 0));
         //
         // Global functions:
-        //     _transform(v|m, v), _sign(s), _dot(v, v), _norm(v), _tex2d(t, v)
+        //     _transform(v, m), _sign(s), _dot(v, v), _sin(v), _cos(v), _norm(v), _tex2d(t, v)
         //
-        virtual std::unique_ptr<Shader> createShader(
+        virtual std::shared_ptr<Shader> createShader(
             const char *shadersrc,
             const std::initializer_list<ShaderInput> &vertex,
             const std::initializer_list<ShaderInput> &instance = {},
@@ -310,7 +293,7 @@ namespace platform {
         // @w and @h    - width and height of the 0th mip layer
         // @imgMipsData - array of pointers. Each [i] pointer represents binary data for i'th mip and cannot be nullptr
         //
-        virtual std::unique_ptr<Texture2D> createTexture(
+        virtual std::shared_ptr<Texture2D> createTexture(
             Texture2D::Format format,
             std::uint32_t width,
             std::uint32_t height,
@@ -323,7 +306,7 @@ namespace platform {
         // @stride      - size of struture
         // @return      - handle
         //
-        virtual std::unique_ptr<StructuredData> createData(const void *data, std::uint32_t count, std::uint32_t stride) = 0;
+        virtual std::shared_ptr<StructuredData> createData(const void *data, std::uint32_t count, std::uint32_t stride) = 0;
         
         // TODO: render states
         
@@ -331,7 +314,7 @@ namespace platform {
         // @shader      - shader object.
         // @constants   - pointer to data for 'const' block. Can be nullptr (constants will not be set)
         //
-        virtual void applyShader(const std::unique_ptr<Shader> &shader, const void *constants = nullptr) = 0;
+        virtual void applyShader(const std::shared_ptr<Shader> &shader, const void *constants = nullptr) = 0;
         
         // Apply textures. textures[i] can be nullptr (texture will not be set)
         //
@@ -340,7 +323,18 @@ namespace platform {
         // Draw vertexes without geometry
         //
         virtual void drawGeometry(std::uint32_t vertexCount, Topology topology = Topology::TRIANGLES) = 0;
-        
+
+        // Draw vertexes from StructuredData
+        // @vertexData and @instanceData has layout set by current shader. Both can be nullptr
+        //
+        virtual void drawGeometry(
+            const std::shared_ptr<StructuredData> &vertexData,
+            const std::shared_ptr<StructuredData> &instanceData,
+            std::uint32_t vertexCount,
+            std::uint32_t instanceCount,
+            Topology topology = Topology::TRIANGLES
+        ) = 0;
+
         // TODO: draw indexed geometry
         
         virtual void prepareFrame() = 0;
@@ -350,12 +344,6 @@ namespace platform {
         // @imgFrame - array of size = PlatformInterface::getNativeScreenWidth * PlatformInterface::getNativeScreenHeight * 4
         //
         virtual void getFrameBufferData(std::uint8_t *imgFrame) = 0;
-        
-    private:
-        RenderingDeviceInterface(RenderingDeviceInterface &&) = delete;
-        RenderingDeviceInterface(const RenderingDeviceInterface &) = delete;
-        RenderingDeviceInterface &operator =(RenderingDeviceInterface &&) = delete;
-        RenderingDeviceInterface &operator =(const RenderingDeviceInterface &) = delete;
     };
     
     std::shared_ptr<PlatformInterface> getPlatformInstance();

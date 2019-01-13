@@ -10,9 +10,9 @@ namespace platform {
         void logWarning(const char *fmt, ...) override;
         void logError(const char *fmt, ...) override;
 
-        std::vector<std::string> formFileList(const char *dirPath) const override;
+        std::vector<std::string> formFileList(const char *dirPath) override;
         
-        bool loadFile(const char *filePath, std::unique_ptr<unsigned char []> &data, std::size_t &size) const override;
+        bool loadFile(const char *filePath, std::unique_ptr<unsigned char []> &data, std::size_t &size) override;
 
         float getNativeScreenWidth() const override;
         float getNativeScreenHeight() const override;

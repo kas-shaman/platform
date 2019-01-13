@@ -116,6 +116,7 @@ RootViewController *controller; // global
     view.clearsContextBeforeDrawing = NO;
     view.enableSetNeedsDisplay = NO;
     view.multipleTouchEnabled = YES;
+    view.transform = CGAffineTransformMakeRotation(M_PI_2);
     
     self.inputEnabled = NO;
     self.preferredFramesPerSecond = 60;
@@ -153,8 +154,8 @@ RootViewController *controller; // global
     for (UITouch *item in touches) {
         platform::TouchEventArgs args;
         args.touchID = reinterpret_cast<std::size_t>(item);
-        args.coordinateX = [item locationInView:nil].x;
-        args.coordinateY = [item locationInView:nil].y;
+        args.coordinateX = [item locationInView:nil].y;
+        args.coordinateY = [item locationInView:nil].x;
 
         for (auto &index : _touchEventHandlers) {
             if (index.second.start) {
@@ -168,8 +169,8 @@ RootViewController *controller; // global
     for (UITouch *item in touches) {
         platform::TouchEventArgs args;
         args.touchID = reinterpret_cast<std::size_t>(item);
-        args.coordinateX = [item locationInView:nil].x;
-        args.coordinateY = [item locationInView:nil].y;
+        args.coordinateX = [item locationInView:nil].y;
+        args.coordinateY = [item locationInView:nil].x;
 
         for (auto &index : _touchEventHandlers) {
             if (index.second.move) {
@@ -183,8 +184,8 @@ RootViewController *controller; // global
     for (UITouch *item in touches) {
         platform::TouchEventArgs args;
         args.touchID = reinterpret_cast<std::size_t>(item);
-        args.coordinateX = [item locationInView:nil].x;
-        args.coordinateY = [item locationInView:nil].y;
+        args.coordinateX = [item locationInView:nil].y;
+        args.coordinateY = [item locationInView:nil].x;
 
         for (auto &index : _touchEventHandlers) {
             if (index.second.release) {
@@ -198,8 +199,8 @@ RootViewController *controller; // global
     for (UITouch *item in touches) {
         platform::TouchEventArgs args;
         args.touchID = reinterpret_cast<std::size_t>(item);
-        args.coordinateX = [item locationInView:nil].x;
-        args.coordinateY = [item locationInView:nil].y;
+        args.coordinateX = [item locationInView:nil].y;
+        args.coordinateY = [item locationInView:nil].x;
 
         for (auto &index : _touchEventHandlers) {
             if (index.second.release) {
@@ -218,10 +219,10 @@ namespace platform {
         CGRect bounds = [[UIScreen mainScreen] bounds];
         double scale = [[UIScreen mainScreen] scale];
         
-        _nativeScreenWidth = float(bounds.size.width * scale);
-        _nativeScreenHeight = float(bounds.size.height * scale);
+        _nativeScreenWidth = float(bounds.size.height * scale);
+        _nativeScreenHeight = float(bounds.size.width * scale);
         
-        logInfo("Platform: OK");
+        logInfo("[Platform] Platform: OK");
     }
     IOSPlatform::~IOSPlatform() {}
     
@@ -246,7 +247,7 @@ namespace platform {
         va_end(args);
     }
     
-    std::vector<std::string> IOSPlatform::formFileList(const char *dirPath) const {
+    std::vector<std::string> IOSPlatform::formFileList(const char *dirPath) {
         std::vector<std::string> result;
         
         @autoreleasepool {
@@ -263,15 +264,27 @@ namespace platform {
         return result;
     }
     
-    bool IOSPlatform::loadFile(const char *filePath, std::unique_ptr<uint8_t[]> &data, std::size_t &size) const {
-        std::ifstream stream (filePath, std::ios::binary | std::ios::ate);
+    bool IOSPlatform::loadFile(const char *filePath, std::unique_ptr<uint8_t[]> &data, std::size_t &size) {
+        std::string fullPath;
         
+        @autoreleasepool {
+            fullPath = [[[NSBundle mainBundle] resourcePath] cStringUsingEncoding:NSUTF8StringEncoding];
+            fullPath += "/";
+            fullPath += filePath;
+        }
+        
+        std::ifstream stream (fullPath, std::ios::binary | std::ios::ate);
+
         if (stream.is_open()) {
             stream.clear();
             size = stream.tellg();
+            stream.seekg(0);
             data = std::make_unique<uint8_t[]>(size);
             stream.read(reinterpret_cast<char *>(data.get()), size);
             return stream.gcount() == size;
+        }
+        else {
+            logError("[Platform] File %s is not found", filePath);
         }
         
         return false;
