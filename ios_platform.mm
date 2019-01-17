@@ -134,20 +134,18 @@ RootViewController *controller; // global
 - (BOOL)shouldAutorotate { return NO; }
 - (BOOL)prefersStatusBarHidden { return YES; }
 - (void)update {
-    auto now = std::chrono::high_resolution_clock::now();
-    auto dms = double(std::chrono::duration_cast<std::chrono::microseconds>(now - _lastTime).count()) / 1000.0f;
 
-    if (_platform != nullptr && _platform->updateHandler) {
-        _platform->updateHandler(dms);
-    }
-    
-    _lastTime = now;
 }
 
 - (void)glkView:(GLKView *)view drawInRect:(CGRect)rect {
-    if (_platform != nullptr && _platform->drawHandler) {
-        _platform->drawHandler();
+    auto now = std::chrono::high_resolution_clock::now();
+    auto dtSec = double(std::chrono::duration_cast<std::chrono::microseconds>(now - _lastTime).count()) / 1000000.0;
+
+    if (_platform != nullptr && _platform->updateAndDrawHandler) {
+        _platform->updateAndDrawHandler(float(dtSec));
     }
+
+    _lastTime = now;
 }
 
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(nullable UIEvent *)event {
@@ -362,13 +360,16 @@ namespace platform {
         return _lastTokenGen;
     }
     
-    void IOSPlatform::removeEventHandlers(EventHandlersToken token) {}
-    void IOSPlatform::run(
-        std::function<void(float)> &&update,
-        std::function<void()> &&draw
-    ) {
-        updateHandler = update;
-        drawHandler = draw;
+    void IOSPlatform::removeEventHandlers(EventHandlersToken token) {
+        _keyboardEventHandlers.erase(token);
+        _inputEventHandlers.erase(token);
+        _mouseEventHandlers.erase(token);
+        _touchEventHandlers.erase(token);
+        _gamepadEventHandlers.erase(token);
+    }
+    
+    void IOSPlatform::run(std::function<void(float)> &&updateAndDraw) {
+        updateAndDrawHandler = std::move(updateAndDraw);
      
         @autoreleasepool {
             char *argv[] = {0};

@@ -148,11 +148,10 @@ namespace platform {
         
         // Start platform update cycle
         // This method blocks execution until application exit
-        // Depending on the app state, 'draw' may or may not be called
+        // Argument of @updateAndDraw is delta time in seconds
         //
         virtual void run(
-            std::function<void(float)> &&update,
-            std::function<void()> &&draw
+            std::function<void(float)> &&updateAndDraw
         ) = 0;
         
         // Remove handlers of any type
@@ -338,7 +337,7 @@ namespace platform {
         // TODO: draw indexed geometry
         
         virtual void prepareFrame() = 0;
-        virtual void presentFrame(float dt) = 0;
+        virtual void presentFrame(float dtSec) = 0;
         
         // Get last rendered frame as a bitmap in memory
         // @imgFrame - array of size = PlatformInterface::getNativeScreenWidth * PlatformInterface::getNativeScreenHeight * 4

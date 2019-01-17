@@ -53,16 +53,14 @@ namespace platform {
         ) override;
 
         void run(
-            std::function<void(float)> &&update,
-            std::function<void()> &&draw
+            std::function<void(float)> &&updateAndDraw
         ) override;
         
         void removeEventHandlers(EventHandlersToken token) override;
         void exit() override;
         
     public:
-        std::function<void(float)> updateHandler;
-        std::function<void()> drawHandler;
+        std::function<void(float)> updateAndDrawHandler;
     
     private:
         float _nativeScreenWidth;

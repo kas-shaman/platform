@@ -39,7 +39,7 @@ namespace platform {
         ) override;
         
         void prepareFrame() override;
-        void presentFrame(float dt) override;
+        void presentFrame(float dtSec) override;
         
         void getFrameBufferData(std::uint8_t *imgFrame) override;
 

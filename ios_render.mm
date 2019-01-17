@@ -441,41 +441,6 @@ namespace platform {
         return {};
     }
     
-//    bool shaderReadBlock(std::string &dest, std::istringstream &stream) {
-//        char ch[2] = {};
-//        int braceCounter = 0; // '{' already skipped
-//
-//        while (true) {
-//            ch[0] = stream.get();
-//
-//            if (ch[0] == '{') braceCounter++;
-//            if (ch[0] == '}') {
-//                if (braceCounter == 0) break;
-//                else if (braceCounter > 0) {
-//                    braceCounter--;
-//                }
-//                else return false;
-//            }
-//
-//            if (stream.good()) {
-//                if (ch[0] == '\n') {
-//                    stream >> std::ws;
-//                }
-//
-//                dest += ch;
-//            }
-//            else return false;
-//        }
-//
-//        std::regex ctors(R"(float([234]{1})[\s]*\()");
-//        dest = std::regex_replace(dest, ctors, "vec$1(");
-//
-//        std::regex vars(R"(float([234]{1})[\s]+([\w]+))");
-//        dest = std::regex_replace(dest, vars, "mediump vec$1 $2");
-//
-//        return true;
-//    }
-    
     std::shared_ptr<Shader> IOSRender::createShader(
         const char *shadersrc,
         const std::initializer_list<ShaderInput> &vertex,
@@ -831,7 +796,7 @@ namespace platform {
         GLCHECK(glBindBuffer(GL_UNIFORM_BUFFER, 0));
     }
     
-    void IOSRender::presentFrame(float dt) {
+    void IOSRender::presentFrame(float dtSec) {
 
     }
     
