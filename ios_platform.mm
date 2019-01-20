@@ -11,6 +11,8 @@
 #import <UIKit/UIKit.h>
 #import <GLKit/GLKit.h>
 
+#define ALBUM_ORIENTATION 0
+
 namespace {
     struct KeyboardEventHandler {
         std::function<void(const platform::KeyboardEventArgs &)> down;
@@ -47,6 +49,7 @@ namespace {
     std::unordered_map<platform::EventHandlersToken, TouchEventHandler> _touchEventHandlers;
     std::unordered_map<platform::EventHandlersToken, GamepadEventHandler> _gamepadEventHandlers;
     
+    double _nativeScreenScale;
     std::shared_ptr<platform::IOSPlatform> _platform;
     void *_glContext;
     
@@ -116,7 +119,10 @@ RootViewController *controller; // global
     view.clearsContextBeforeDrawing = NO;
     view.enableSetNeedsDisplay = NO;
     view.multipleTouchEnabled = YES;
+    
+    #if ALBUM_ORIENTATION
     view.transform = CGAffineTransformMakeRotation(M_PI_2);
+    #endif
     
     self.inputEnabled = NO;
     self.preferredFramesPerSecond = 60;
@@ -148,12 +154,23 @@ RootViewController *controller; // global
     _lastTime = now;
 }
 
+// TODO: copypasta!
+
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(nullable UIEvent *)event {
     for (UITouch *item in touches) {
         platform::TouchEventArgs args;
         args.touchID = reinterpret_cast<std::size_t>(item);
+
+        #if ALBUM_ORIENTATION
         args.coordinateX = [item locationInView:nil].y;
         args.coordinateY = [item locationInView:nil].x;
+        #else
+        args.coordinateX = [item locationInView:nil].x;
+        args.coordinateY = [item locationInView:nil].y;
+        #endif
+        
+        args.coordinateX *= _nativeScreenScale;
+        args.coordinateY *= _nativeScreenScale;
 
         for (auto &index : _touchEventHandlers) {
             if (index.second.start) {
@@ -167,8 +184,17 @@ RootViewController *controller; // global
     for (UITouch *item in touches) {
         platform::TouchEventArgs args;
         args.touchID = reinterpret_cast<std::size_t>(item);
+
+        #if ALBUM_ORIENTATION
         args.coordinateX = [item locationInView:nil].y;
         args.coordinateY = [item locationInView:nil].x;
+        #else
+        args.coordinateX = [item locationInView:nil].x;
+        args.coordinateY = [item locationInView:nil].y;
+        #endif
+        
+        args.coordinateX *= _nativeScreenScale;
+        args.coordinateY *= _nativeScreenScale;
 
         for (auto &index : _touchEventHandlers) {
             if (index.second.move) {
@@ -182,8 +208,17 @@ RootViewController *controller; // global
     for (UITouch *item in touches) {
         platform::TouchEventArgs args;
         args.touchID = reinterpret_cast<std::size_t>(item);
+        
+        #if ALBUM_ORIENTATION
         args.coordinateX = [item locationInView:nil].y;
         args.coordinateY = [item locationInView:nil].x;
+        #else
+        args.coordinateX = [item locationInView:nil].x;
+        args.coordinateY = [item locationInView:nil].y;
+        #endif
+        
+        args.coordinateX *= _nativeScreenScale;
+        args.coordinateY *= _nativeScreenScale;
 
         for (auto &index : _touchEventHandlers) {
             if (index.second.release) {
@@ -197,8 +232,17 @@ RootViewController *controller; // global
     for (UITouch *item in touches) {
         platform::TouchEventArgs args;
         args.touchID = reinterpret_cast<std::size_t>(item);
+        
+        #if ALBUM_ORIENTATION
         args.coordinateX = [item locationInView:nil].y;
         args.coordinateY = [item locationInView:nil].x;
+        #else
+        args.coordinateX = [item locationInView:nil].x;
+        args.coordinateY = [item locationInView:nil].y;
+        #endif
+        
+        args.coordinateX *= _nativeScreenScale;
+        args.coordinateY *= _nativeScreenScale;
 
         for (auto &index : _touchEventHandlers) {
             if (index.second.release) {
@@ -215,30 +259,38 @@ RootViewController *controller; // global
 namespace platform {
     IOSPlatform::IOSPlatform() {
         CGRect bounds = [[UIScreen mainScreen] bounds];
-        double scale = [[UIScreen mainScreen] scale];
+        _nativeScreenScale = [[UIScreen mainScreen] scale];
         
-        _nativeScreenWidth = float(bounds.size.height * scale);
-        _nativeScreenHeight = float(bounds.size.width * scale);
+        #if ALBUM_ORIENTATION
+        _nativeScreenWidth = float(bounds.size.height * _nativeScreenScale);
+        _nativeScreenHeight = float(bounds.size.width * _nativeScreenScale);
+        #else
+        _nativeScreenWidth = float(bounds.size.width * _nativeScreenScale);
+        _nativeScreenHeight = float(bounds.size.height * _nativeScreenScale);
+        #endif
         
         logInfo("[Platform] Platform: OK");
     }
-    IOSPlatform::~IOSPlatform() {}
     
-    void IOSPlatform::logInfo(const char *fmt, ...) {
+    IOSPlatform::~IOSPlatform() {
+    
+    }
+    
+    void Platform::logInfo(const char *fmt, ...) {
         va_list args;
         va_start(args, fmt);
         writeLog("Info", fmt, args);
         va_end(args);
     }
     
-    void IOSPlatform::logWarning(const char *fmt, ...) {
+    void Platform::logWarning(const char *fmt, ...) {
         va_list args;
         va_start(args, fmt);
         writeLog("Warning", fmt, args);
         va_end(args);
     }
     
-    void IOSPlatform::logError(const char *fmt, ...) {
+    void Platform::logError(const char *fmt, ...) {
         va_list args;
         va_start(args, fmt);
         writeLog("Error", fmt, args);
@@ -301,8 +353,13 @@ namespace platform {
         return nullptr;
     }
     
-    void IOSPlatform::showCursor() {}
-    void IOSPlatform::hideCursor() {}
+    void IOSPlatform::showCursor() {
+    
+    }
+    
+    void IOSPlatform::hideCursor() {
+    
+    }
     
     void IOSPlatform::showKeyboard() {
         @autoreleasepool {
@@ -321,7 +378,8 @@ namespace platform {
     EventHandlersToken IOSPlatform::addKeyboardEventHandlers(
         std::function<void(const KeyboardEventArgs &)> &&down,
         std::function<void(const KeyboardEventArgs &)> &&up
-    ) {
+    )
+    {
         _keyboardEventHandlers.emplace(++_lastTokenGen, KeyboardEventHandler{ std::move(down), std::move(up) });
         return _lastTokenGen;
     }
@@ -329,7 +387,8 @@ namespace platform {
     EventHandlersToken IOSPlatform::addInputEventHandlers(
         std::function<void(const char (&utf8char)[4])> &&input,
         std::function<void()> &&backspace
-    ) {
+    )
+    {
         _inputEventHandlers.emplace(++_lastTokenGen, InputEventHandler{ std::move(input), std::move(backspace) });
         return _lastTokenGen;
     }
@@ -338,7 +397,8 @@ namespace platform {
         std::function<void(const MouseEventArgs &)> &&press,
         std::function<void(const MouseEventArgs &)> &&move,
         std::function<void(const MouseEventArgs &)> &&release
-    ) {
+    )
+    {
         _mouseEventHandlers.emplace(++_lastTokenGen, MouseEventHandler{ std::move(press), std::move(move), std::move(release) });
         return _lastTokenGen;
     }
@@ -347,7 +407,8 @@ namespace platform {
         std::function<void(const TouchEventArgs &)> &&start,
         std::function<void(const TouchEventArgs &)> &&move,
         std::function<void(const TouchEventArgs &)> &&release
-    ) {
+    )
+    {
         _touchEventHandlers.emplace(++_lastTokenGen, TouchEventHandler{ std::move(start), std::move(move), std::move(release) });
         return _lastTokenGen;
     }
@@ -355,7 +416,8 @@ namespace platform {
     EventHandlersToken IOSPlatform::addGamepadEventHandlers(
         std::function<void(const GamepadEventArgs &)> &&buttonPress,
         std::function<void(const GamepadEventArgs &)> &&buttonRelease
-    ) {
+    )
+    {
         _gamepadEventHandlers.emplace(++_lastTokenGen, GamepadEventHandler{ std::move(buttonPress), std::move(buttonRelease) });
         return _lastTokenGen;
     }
@@ -377,9 +439,11 @@ namespace platform {
         }
     }
     
-    void IOSPlatform::exit() {}
+    void IOSPlatform::exit() {
     
-    std::shared_ptr<PlatformInterface> getPlatformInstance() {
+    }
+    
+    std::shared_ptr<Platform> getPlatformInstance() {
         if (_platform == nullptr) {
             _platform = std::make_shared<platform::IOSPlatform>();
         }

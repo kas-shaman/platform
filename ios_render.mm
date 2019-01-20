@@ -18,7 +18,7 @@ namespace {
     static constexpr std::size_t SHADER_BIND_FRAME_DATA = 0;
     static constexpr std::size_t SHADER_BIND_PERMANENT_CONST = 1;
     static constexpr std::size_t SHADER_BIND_CONSTANTS = 2;
-
+    
     std::shared_ptr<platform::IOSRender> _render;
     
     GLenum _topologyMap[std::size_t(platform::Topology::_count)] = {
@@ -27,7 +27,7 @@ namespace {
         GL_TRIANGLES,
         GL_TRIANGLE_STRIP
     };
-
+    
     struct NativeTexturFormat {
         GLint  internalFormat;
         GLenum format;
@@ -68,7 +68,7 @@ namespace platform {
     class ShaderImp : public Shader {
     public:
         ShaderImp(
-            const std::shared_ptr<PlatformInterface> &platform,
+            const std::shared_ptr<Platform> &platform,
             const char **vsrc, GLint *vlen, std::size_t vcnt,
             const char **fsrc, GLint *flen, std::size_t fcnt,
             std::vector<ShaderInput> &&vertexLayout,
@@ -76,27 +76,25 @@ namespace platform {
             const void *permanentConstBlockData,
             std::size_t permanentConstBlockSize,
             std::size_t constantsBlockSize
-
-        ) : _platform(platform),
-            _vertexLayout(std::move(vertexLayout)),
-            _instanceLayout(std::move(instanceLayout)),
-            _permanentConstBlockSize(permanentConstBlockSize),
-            _constantsBlockSize(constantsBlockSize)
+        )
+        : _platform(platform)
+        , _vertexLayout(std::move(vertexLayout))
+        , _instanceLayout(std::move(instanceLayout))
+        , _permanentConstBlockSize(permanentConstBlockSize)
+        , _constantsBlockSize(constantsBlockSize)
         {
-        
             struct fn {
-                static void printLinedShader(const std::shared_ptr<PlatformInterface> &platform, const char **src, GLint *len, std::size_t cnt) {
+                static void printLinedShader(const std::shared_ptr<Platform> &platform, const char **src, GLint *len, std::size_t cnt) {
                     char buffer[256] = {0};
                     platform->logError("[Render] --------------------------------");
                     for (std::size_t i = 0; i < cnt; i++) {
                         std::memcpy(buffer, src[i], len[i]);
-                        buffer[len[i] - 1] = 0;
                         platform->logError("%03zu |%s", i + 1, buffer);
                     }
                     platform->logError("-----------------------------------------");
                 }
             };
-        
+            
             static constexpr unsigned BUFFER_MAX = 256;
             static char errorBuffer[BUFFER_MAX];
             
@@ -130,9 +128,6 @@ namespace platform {
                     if (status == GL_TRUE) {
                         GLuint index;
                         
-                        //fn::printLinedShader(platform, vsrc, vlen, vcnt);
-                        //fn::printLinedShader(platform, fsrc, flen, fcnt);
-
                         if ((index = glGetUniformBlockIndex(program, "_FrameData")) != GL_INVALID_INDEX) {
                             GLCHECK(glUniformBlockBinding(program, index, SHADER_BIND_FRAME_DATA));
                         }
@@ -152,7 +147,7 @@ namespace platform {
                         //        glcall(glUniform1i, location, i);
                         //    }
                         //}
-
+                        
                         _program = program;
                         _vshader = vshader;
                         _fshader = fshader;
@@ -183,12 +178,12 @@ namespace platform {
                 fn::printLinedShader(platform, vsrc, vlen, vcnt);
                 _platform->logError("[Render] vertex shader compilation failed: %s", errorBuffer);
             }
-
+            
             GLCHECK(glDeleteShader(program));
             GLCHECK(glDeleteShader(vshader));
             GLCHECK(glDeleteShader(fshader));
         }
-
+        
         ~ShaderImp() {
             GLCHECK(glDeleteBuffers(1, &_permanentConstBlockBuffer));
             GLCHECK(glDeleteShader(_program));
@@ -199,33 +194,34 @@ namespace platform {
         const std::vector<ShaderInput> &getVertexLayout() const {
             return _vertexLayout;
         }
-
+        
         const std::vector<ShaderInput> &getInstanceLayout() const {
             return _instanceLayout;
         }
-
+        
         GLuint getProgram() const {
             return _program;
         }
-
+        
         GLuint getPermanentConstBlockBuffer() const {
             return _permanentConstBlockBuffer;
         }
-
+        
         std::size_t getPermanentConstBlockSize() const {
             return _permanentConstBlockSize;
         }
-
+        
         std::size_t getConstBlockSize() const {
             return 256;//_constantsBlockSize;
         }
-
-        std::shared_ptr<PlatformInterface> _platform;
+        
+    private:
+        std::shared_ptr<Platform> _platform;
         std::vector<ShaderInput> _vertexLayout;
         std::vector<ShaderInput> _instanceLayout;
         std::size_t _permanentConstBlockSize;
         std::size_t _constantsBlockSize;
-
+        
         GLuint _vshader;
         GLuint _fshader;
         GLuint _program;
@@ -237,20 +233,20 @@ namespace platform {
     class Texture2DImp : public Texture2D {
     public:
         Texture2DImp(
-            const std::shared_ptr<PlatformInterface> &platform,
+            const std::shared_ptr<Platform> &platform,
             Texture2D::Format format,
             std::uint32_t w,
             std::uint32_t h,
             const NativeTexturFormat &nativeFormat,
             const std::initializer_list<const std::uint8_t *> &imgMipsData
             
-        ) : _platform(platform),
-            _format(format),
-            _width(w),
-            _height(h),
-            _mipCount(std::uint32_t(imgMipsData.size()))
+        )
+        : _platform(platform)
+        , _format(format)
+        , _width(w)
+        , _height(h)
+        , _mipCount(std::uint32_t(imgMipsData.size()))
         {
-            
             GLCHECK(glGenTextures(1, &_texture));
             GLCHECK(glBindTexture(GL_TEXTURE_2D, _texture));
             GLCHECK(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
@@ -271,40 +267,54 @@ namespace platform {
             }
             
             GLCHECK(glBindTexture(GL_TEXTURE_2D, 0));
-            
-            
         }
-
+        
         ~Texture2DImp() {
         
+        }
+        
+        std::uint32_t getWidth() const {
+            return _width;
+        }
+        
+        std::uint32_t getHeight() const {
+            return _height;
+        }
+        
+        std::uint32_t getMipCount() const {
+            return _mipCount;
+        }
+        
+        Texture2D::Format getFormat() const {
+            return _format;
         }
         
         GLuint getTexture() const {
             return _texture;
         }
-
-        std::shared_ptr<PlatformInterface> _platform;
-        Texture2D::Format _format;
+        
+        std::shared_ptr<Platform> _platform;
         std::uint32_t _mipCount;
         std::uint32_t _width;
         std::uint32_t _height;
+        Texture2D::Format _format;
         GLuint _texture;
     };
-
+    
     std::uint32_t Texture2D::getWidth() const {
-        return static_cast<const Texture2DImp *>(this)->_width;
+        return static_cast<const Texture2DImp *>(this)->getWidth();
     }
     
     std::uint32_t Texture2D::getHeight() const {
-        return static_cast<const Texture2DImp *>(this)->_height;
+        return static_cast<const Texture2DImp *>(this)->getHeight();
     }
     
     std::uint32_t Texture2D::getMipCount() const {
-        return static_cast<const Texture2DImp *>(this)->_mipCount;
+        return static_cast<const Texture2DImp *>(this)->getMipCount();
     }
     
     Texture2D::Format Texture2D::getFormat() const {
-        return static_cast<const Texture2DImp *>(this)->_format;
+        return static_cast<const Texture2DImp *>(this)->getFormat();
     }
 }
 
@@ -312,44 +322,54 @@ namespace platform {
     class StructuredDataImp : public StructuredData {
     public:
         StructuredDataImp(
-            const std::shared_ptr<PlatformInterface> &platform,
+            const std::shared_ptr<Platform> &platform,
             const void *data,
             std::uint32_t count,
             std::uint32_t stride
-            
-        ) : _platform(platform), _count(count), _stride(stride) {
-        
+        )
+        : _platform(platform)
+        , _count(count)
+        , _stride(stride)
+        {
             GLCHECK(glGenBuffers(1, &_vbo));
             GLCHECK(glBindBuffer(GL_ARRAY_BUFFER, _vbo));
             GLCHECK(glBufferData(GL_ARRAY_BUFFER, count * stride, data, GL_STATIC_DRAW));
             GLCHECK(glBindBuffer(GL_ARRAY_BUFFER, 0));
         }
-
+        
         ~StructuredDataImp() {
             GLCHECK(glDeleteBuffers(1, &_vbo));
         }
-
+        
+        std::uint32_t getCount() const {
+            return _count;
+        }
+        
+        std::uint32_t getStride() const {
+            return _stride;
+        }
+        
         GLuint getBuffer() const {
             return _vbo;
         }
-
-        std::shared_ptr<PlatformInterface> _platform;
+        
+        std::shared_ptr<Platform> _platform;
         std::uint32_t _count;
         std::uint32_t _stride;
         GLuint _vbo;
     };
-
+    
     std::uint32_t StructuredData::getCount() const {
-        return static_cast<const StructuredDataImp *>(this)->_count;
+        return static_cast<const StructuredDataImp *>(this)->getCount();
     }
 
     std::uint32_t StructuredData::getStride() const {
-        return static_cast<const StructuredDataImp *>(this)->_stride;
+        return static_cast<const StructuredDataImp *>(this)->getStride();
     }
 }
 
 namespace platform {
-    IOSRender::IOSRender(const std::shared_ptr<PlatformInterface> &platform) : _platform(platform), _frameData(), _shaderConstStreamOffset(0) {
+    IOSRender::IOSRender(const std::shared_ptr<Platform> &platform) : _platform(platform), _frameData(), _shaderConstStreamOffset(0) {
         GLCHECK(glGenBuffers(1, &_shaderFrameDataBuffer));
         GLCHECK(glBindBuffer(GL_UNIFORM_BUFFER, _shaderFrameDataBuffer));
         GLCHECK(glBufferData(GL_UNIFORM_BUFFER, sizeof(FrameData), nullptr, GL_DYNAMIC_DRAW));
@@ -396,18 +416,18 @@ namespace platform {
         int  multiply = 1;
         auto braceStart = varname.find('[');
         auto braceEnd = varname.rfind(']');
-
+        
         if (braceStart != std::string::npos && braceEnd != std::string::npos) {
             multiply = std::max(std::stoi(varname.substr(braceStart + 1, braceEnd - braceStart - 1)), multiply);
         }
-
+        
         for (const auto &fmt : typeSizeTable) {
             if (fmt.inputFormat == format) {
                 format = fmt.outputFormat;
                 return fmt.size * multiply;
             }
         }
-
+        
         return 0;
     }
     
@@ -448,7 +468,7 @@ namespace platform {
         const void *prmnt
     ) {
         std::shared_ptr<Shader> result;
-    
+        
         std::string varname, arg;
         std::string shaderConsts;
         std::string vsInout;
@@ -461,7 +481,7 @@ namespace platform {
         std::size_t shaderInterCount = 0;
         std::size_t shaderVssrcCount = 0;
         std::size_t shaderFssrcCount = 0;
-
+        
         std::size_t shaderPrmntSize = 0;
         std::size_t shaderConstSize = 0;
         
@@ -485,10 +505,10 @@ namespace platform {
             "mediump vec4 _renderTargetBounds;\n"
             "};\n"
             "\n";
-    
+        
         std::string fsShader = vsShader;
         bool error = false;
-
+        
         for (std::size_t i = 0, cnt = vertex.size(); i < cnt; i++) {
             const ShaderInput &current = *(vertex.begin() + i);
             
@@ -499,7 +519,7 @@ namespace platform {
                 vsInout += "in mediump " + shaderGetTypeName( current.format ) + " vertex_" + std::string(current.name) + ";\n";
             }
         }
-
+        
         for (std::size_t i = 0, cnt = instance.size(); i < cnt; i++) {
             const ShaderInput &current = *(instance.begin() + i);
             
@@ -507,7 +527,7 @@ namespace platform {
                 vsInout += "in mediump " + shaderGetTypeName( current.format ) + " instance_" + std::string(current.name) + ";\n";
             }
         }
-
+        
         vsInout += "\n";
         
         auto readVarsBlock = [this, &stream, &varname, &arg, &error](const char *blockName, std::size_t &counter, std::string &t1, std::string *t2) {
@@ -566,7 +586,7 @@ namespace platform {
                         if (ch[0] == '\n') {
                             stream >> std::ws;
                         }
-
+                        
                         dest += ch;
                     }
                     else {
@@ -578,16 +598,16 @@ namespace platform {
                 
                 std::regex ctors1(R"(float([234]{1})[\s]*\()");
                 dest = std::regex_replace(dest, ctors1, "vec$1(");
-
+                
                 std::regex ctors2(R"(matrix([34]{1})[\s]*\()");
                 dest = std::regex_replace(dest, ctors2, "mat$1(");
-
+                
                 std::regex vars1(R"(float([234]{1})[\s]+([\w]+))");
                 dest = std::regex_replace(dest, vars1, "mediump vec$1 $2");
-
+                
                 std::regex vars2(R"(matrix([34]{1})[\s]+([\w]+))");
                 dest = std::regex_replace(dest, vars2, "mediump mat$1 $2");
-
+                
                 return true;
             }
             else {
@@ -641,7 +661,7 @@ namespace platform {
             const char *fsrc[SHADER_LINES_MAX] = {fsShader.data()};
             GLint vslen[SHADER_LINES_MAX] = {0};
             GLint fslen[SHADER_LINES_MAX] = {0};
-
+            
             {
                 const char *current = vsShader.data();
                 while(const char *chpos = (std::strchr(current, '\n'))) {
@@ -709,7 +729,7 @@ namespace platform {
             GLCHECK(glBindBufferBase(GL_UNIFORM_BUFFER, SHADER_BIND_CONSTANTS, _shaderConstStreamBuffer));
             GLCHECK(glBindBufferBase(GL_UNIFORM_BUFFER, SHADER_BIND_FRAME_DATA, _shaderFrameDataBuffer));
             GLCHECK(glBindBufferBase(GL_UNIFORM_BUFFER, SHADER_BIND_PERMANENT_CONST, platformShader->getPermanentConstBlockBuffer()));
-        
+            
             _currentShader = shader;
         }
     }
@@ -743,7 +763,7 @@ namespace platform {
             const std::vector<ShaderInput> &instanceDesc = shaderImp->getInstanceLayout();
             
             GLuint index = 0;
-
+            
             if (const StructuredDataImp *vertexDataImp = static_cast<const StructuredDataImp *>(vertexData.get())) {
                 GLCHECK(glBindBuffer(GL_ARRAY_BUFFER, vertexDataImp->getBuffer()));
                 
@@ -759,10 +779,10 @@ namespace platform {
                     }
                 }
             }
-
+            
             if (const StructuredDataImp *instanceDataImp = static_cast<const StructuredDataImp *>(instanceData.get())) {
                 GLCHECK(glBindBuffer(GL_ARRAY_BUFFER, instanceDataImp->getBuffer()));
-
+                
                 const char *offset = 0;
                 for (GLuint i = 0; i < instanceDesc.size(); i++) {
                     if (instanceDesc[i].format != ShaderInput::Format::VERTEX_ID) {
@@ -790,14 +810,14 @@ namespace platform {
         
         _frameData.renderTargetBounds[0] = _platform->getNativeScreenWidth();
         _frameData.renderTargetBounds[1] = _platform->getNativeScreenHeight();
-
+        
         GLCHECK(glBindBuffer(GL_UNIFORM_BUFFER, _shaderFrameDataBuffer));
         GLCHECK(glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(FrameData), &_frameData));
         GLCHECK(glBindBuffer(GL_UNIFORM_BUFFER, 0));
     }
     
     void IOSRender::presentFrame(float dtSec) {
-
+        
     }
     
     void IOSRender::getFrameBufferData(std::uint8_t *imgFrame) {
@@ -805,20 +825,20 @@ namespace platform {
         GLCHECK(glReadPixels(0, 0, _platform->getNativeScreenWidth(), _platform->getNativeScreenHeight(), GL_RGBA, GL_UNSIGNED_BYTE, imgFrame));
     }
     
-    std::shared_ptr<RenderingDeviceInterface> getRenderingDeviceInstance(const std::shared_ptr<PlatformInterface> &platform) {
+    std::shared_ptr<RenderingDevice> getRenderingDeviceInstance(const std::shared_ptr<Platform> &platform) {
         if (_render == nullptr) {
             EAGLContext *glContext = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3];
         
             if (glContext) {
                 platform->setNativeRenderingContext((__bridge_retained void *)(glContext));
                 platform->logInfo("[Render] ES context: OK");
-
+                
                 [EAGLContext setCurrentContext:glContext];
             }
             else {
                 platform->logError("[Render] Failed to create ES context");
             }
-
+            
             _render = std::make_shared<platform::IOSRender>(platform);
         }
         

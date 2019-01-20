@@ -54,124 +54,118 @@ namespace platform {
     };
     
     struct GamepadEventArgs {
-    
     };
     
     using EventHandlersToken = struct {} *;
     
     // Interface provides low-level core methods
     //
-    class PlatformInterface : public Base {
-    public:
-        PlatformInterface() = default;
-        virtual ~PlatformInterface() {}
-        
+    class Platform : public Base {
     public:
         // Thread-safe logging
-        virtual void logInfo(const char *fmt, ...) = 0;
-        virtual void logWarning(const char *fmt, ...) = 0;
-        virtual void logError(const char *fmt, ...) = 0;
+        void logInfo(const char *fmt, ...);
+        void logWarning(const char *fmt, ...);
+        void logError(const char *fmt, ...);
         
         // Forms std::vector of file paths in @dirPath
         // @dirPath  - target directory. Example: "data/map1"
         // @return   - vector of paths
         //
-        virtual std::vector<std::string> formFileList(const char *dirPath) = 0;
+        std::vector<std::string> formFileList(const char *dirPath);
         
         // Loads file to memory
         // @filePath - file path. Example: "data/map1/test.png"
         // @return   - true if file successfully loaded. Items returned by formFileList should be successfully loaded.
         //
-        virtual bool loadFile(const char *filePath, std::unique_ptr<uint8_t[]> &data, std::size_t &size) = 0;
+        bool loadFile(const char *filePath, std::unique_ptr<uint8_t[]> &data, std::size_t &size);
         
         // Returns native screen size in pixels
         //
-        virtual float getNativeScreenWidth() const = 0;
-        virtual float getNativeScreenHeight() const = 0;
+        float getNativeScreenWidth() const;
+        float getNativeScreenHeight() const;
         
         // Connecting render with native window. Used by RenderingDevice. Must be called before run()
         // @context  - platform-dependent handle (ID3D11Device * for windows, EAGLContext * for ios, etc)
         // @return   - platform-dependent result (IDXGISwapChain * for windows)
         //
-        virtual void *setNativeRenderingContext(void *context) = 0;
+        void *setNativeRenderingContext(void *context);
         
         // Show/hide PC mouse pointer
-        virtual void showCursor() = 0;
-        virtual void hideCursor() = 0;
+        void showCursor();
+        void hideCursor();
         
         // Show/hide keyboard on mobile devices
-        virtual void showKeyboard() = 0;
-        virtual void hideKeyboard() = 0;
+        void showKeyboard();
+        void hideKeyboard();
         
         // Set handlers for PC keyboard
         // @return nullptr if is not supported
         //
-        virtual EventHandlersToken addKeyboardEventHandlers(
+        EventHandlersToken addKeyboardEventHandlers(
             std::function<void(const KeyboardEventArgs &)> &&down,
             std::function<void(const KeyboardEventArgs &)> &&up
-        ) = 0;
+        );
         
         // Set handlers for User's input (physical or virtual keyboard)
         // @return nullptr if is not supported
         //
-        virtual EventHandlersToken addInputEventHandlers(
+        EventHandlersToken addInputEventHandlers(
             std::function<void(const char (&utf8char)[4])> &&input,
             std::function<void()> &&backspace
-        ) = 0;
+        );
         
         // Set handlers for PC mouse
         // coordinateX/coordinateY of MouseEventArgs struct can be replaced with user's value (Platform will set new pointer coordinates)
         // @return nullptr if is not supported
         //
-        virtual EventHandlersToken addMouseEventHandlers(
+        EventHandlersToken addMouseEventHandlers(
             std::function<void(const MouseEventArgs &)> &&press,
             std::function<void(const MouseEventArgs &)> &&move,
             std::function<void(const MouseEventArgs &)> &&release
-        ) = 0;
+        );
         
         // Set handlers for touch
         // @return nullptr if is not supported
         //
-        virtual EventHandlersToken addTouchEventHandlers(
+        EventHandlersToken addTouchEventHandlers(
             std::function<void(const TouchEventArgs &)> &&start,
             std::function<void(const TouchEventArgs &)> &&move,
             std::function<void(const TouchEventArgs &)> &&finish
-        ) = 0;
+        );
         
         // Set handlers for gamepad
         // @return nullptr if is not supported
         //
-        virtual EventHandlersToken addGamepadEventHandlers(
+        EventHandlersToken addGamepadEventHandlers(
             std::function<void(const GamepadEventArgs &)> &&buttonPress,
             std::function<void(const GamepadEventArgs &)> &&buttonRelease
-        ) = 0;
+        );
         
         // Start platform update cycle
         // This method blocks execution until application exit
         // Argument of @updateAndDraw is delta time in seconds
         //
-        virtual void run(
-            std::function<void(float)> &&updateAndDraw
-        ) = 0;
+        void run(std::function<void(float)> &&updateAndDraw);
         
         // Remove handlers of any type
         //
-        virtual void removeEventHandlers(EventHandlersToken token) = 0;
+        void removeEventHandlers(EventHandlersToken token);
         
         // Breaks platform update cycle
         //
-        virtual void exit() = 0;
+        void exit();
+        
+    protected:
+        Platform() = default;
     };
     
     // Interface provides Audio control methods
     //
-    class AudioDeviceInterface : public Base {
-    public:
-        AudioDeviceInterface() = default;
-        virtual ~AudioDeviceInterface() {}
-        
+    class AudioDevice : public Base {
     public:
         
+    protected:
+        AudioDevice() = default;
     };
 
     // Topology of vertex data
@@ -204,8 +198,8 @@ namespace platform {
     };
     
     class Shader : public Base {
-    public:
-        Shader() {}
+    protected:
+        Shader() = default;
     };
     
     class Texture2D : public Base {
@@ -216,31 +210,29 @@ namespace platform {
             _count
         };
         
-        Texture2D() {}
-        
         std::uint32_t getWidth() const;
         std::uint32_t getHeight() const;
         std::uint32_t getMipCount() const;
         Texture2D::Format getFormat() const;
+    
+    protected:
+        Texture2D() = default;
     };
     
     class StructuredData : public Base {
     public:
-        StructuredData() {}
-        
         std::uint32_t getCount() const;
         std::uint32_t getStride() const;
+        
+    protected:
+        StructuredData() = default;
     };
     
     // Interface provides 3D-visualization methods
     //
-    class RenderingDeviceInterface {
+    class RenderingDevice {
     public:
-        RenderingDeviceInterface() = default;
-        virtual ~RenderingDeviceInterface() {}
-        
-    public:
-        virtual void updateCameraTransform(const float (&camPos)[3], const float(&camDir)[3], const float(&camVP)[16]) = 0;
+        void updateCameraTransform(const float (&camPos)[3], const float(&camDir)[3], const float(&camVP)[16]);
         
         // Create shader from source text
         // @vertex    - input layout for vertex shader (all such variables have 'vertex_' prefix)
@@ -281,23 +273,23 @@ namespace platform {
         // Global functions:
         //     _transform(v, m), _sign(s), _dot(v, v), _sin(v), _cos(v), _norm(v), _tex2d(t, v)
         //
-        virtual std::shared_ptr<Shader> createShader(
+        std::shared_ptr<Shader> createShader(
             const char *shadersrc,
             const std::initializer_list<ShaderInput> &vertex,
             const std::initializer_list<ShaderInput> &instance = {},
             const void *prmnt = nullptr
-        ) = 0;
+        );
         
         // Create texture from binary data
         // @w and @h    - width and height of the 0th mip layer
         // @imgMipsData - array of pointers. Each [i] pointer represents binary data for i'th mip and cannot be nullptr
         //
-        virtual std::shared_ptr<Texture2D> createTexture(
+        std::shared_ptr<Texture2D> createTexture(
             Texture2D::Format format,
             std::uint32_t width,
             std::uint32_t height,
             const std::initializer_list<const std::uint8_t *> &mipsData = {}
-        ) = 0;
+        );
         
         // Create geometry
         // @data        - pointer to data (array of structures)
@@ -305,48 +297,52 @@ namespace platform {
         // @stride      - size of struture
         // @return      - handle
         //
-        virtual std::shared_ptr<StructuredData> createData(const void *data, std::uint32_t count, std::uint32_t stride) = 0;
+        std::shared_ptr<StructuredData> createData(const void *data, std::uint32_t count, std::uint32_t stride);
         
         // TODO: render states
+        // TODO: render targets
         
         // Apply shader
         // @shader      - shader object.
         // @constants   - pointer to data for 'const' block. Can be nullptr (constants will not be set)
         //
-        virtual void applyShader(const std::shared_ptr<Shader> &shader, const void *constants = nullptr) = 0;
+        void applyShader(const std::shared_ptr<Shader> &shader, const void *constants = nullptr);
         
         // Apply textures. textures[i] can be nullptr (texture will not be set)
         //
-        virtual void applyTextures(const std::initializer_list<const Texture2D *> &textures) = 0;
+        void applyTextures(const std::initializer_list<const Texture2D *> &textures);
         
         // Draw vertexes without geometry
         //
-        virtual void drawGeometry(std::uint32_t vertexCount, Topology topology = Topology::TRIANGLES) = 0;
+        void drawGeometry(std::uint32_t vertexCount, Topology topology = Topology::TRIANGLES);
 
         // Draw vertexes from StructuredData
         // @vertexData and @instanceData has layout set by current shader. Both can be nullptr
         //
-        virtual void drawGeometry(
+        void drawGeometry(
             const std::shared_ptr<StructuredData> &vertexData,
             const std::shared_ptr<StructuredData> &instanceData,
             std::uint32_t vertexCount,
             std::uint32_t instanceCount,
             Topology topology = Topology::TRIANGLES
-        ) = 0;
+        );
 
         // TODO: draw indexed geometry
         
-        virtual void prepareFrame() = 0;
-        virtual void presentFrame(float dtSec) = 0;
+        void prepareFrame();
+        void presentFrame(float dtSec);
         
         // Get last rendered frame as a bitmap in memory
         // @imgFrame - array of size = PlatformInterface::getNativeScreenWidth * PlatformInterface::getNativeScreenHeight * 4
         //
-        virtual void getFrameBufferData(std::uint8_t *imgFrame) = 0;
+        void getFrameBufferData(std::uint8_t *imgFrame);
+        
+    protected:
+        RenderingDevice() = default;
     };
     
-    std::shared_ptr<PlatformInterface> getPlatformInstance();
-    std::shared_ptr<AudioDeviceInterface> getAudioDeviceInstance(const std::shared_ptr<PlatformInterface> &platform);
-    std::shared_ptr<RenderingDeviceInterface> getRenderingDeviceInstance(const std::shared_ptr<PlatformInterface> &platform);
+    std::shared_ptr<Platform> getPlatformInstance();
+    std::shared_ptr<AudioDevice> getAudioDeviceInstance(const std::shared_ptr<Platform> &platform);
+    std::shared_ptr<RenderingDevice> getRenderingDeviceInstance(const std::shared_ptr<Platform> &platform);
 }
 

@@ -1,63 +1,54 @@
 #pragma once
 
 namespace platform {
-    class IOSPlatform : public PlatformInterface {
+    class IOSPlatform : public Platform {
     public:
         IOSPlatform();
-        ~IOSPlatform() override;
+        ~IOSPlatform();
 
-        void logInfo(const char *fmt, ...) override;
-        void logWarning(const char *fmt, ...) override;
-        void logError(const char *fmt, ...) override;
+        std::vector<std::string> formFileList(const char *dirPath);
+        bool loadFile(const char *filePath, std::unique_ptr<unsigned char []> &data, std::size_t &size);
 
-        std::vector<std::string> formFileList(const char *dirPath) override;
-        
-        bool loadFile(const char *filePath, std::unique_ptr<unsigned char []> &data, std::size_t &size) override;
+        float getNativeScreenWidth() const;
+        float getNativeScreenHeight() const;
 
-        float getNativeScreenWidth() const override;
-        float getNativeScreenHeight() const override;
+        void *setNativeRenderingContext(void *context);
 
-        void *setNativeRenderingContext(void *context) override;
-
-        void showCursor() override;
-        void hideCursor() override;
-        
-        void showKeyboard() override;
-        void hideKeyboard() override;
+        void showCursor();
+        void hideCursor();
+        void showKeyboard();
+        void hideKeyboard();
         
         EventHandlersToken addKeyboardEventHandlers(
             std::function<void(const KeyboardEventArgs &)> &&down,
             std::function<void(const KeyboardEventArgs &)> &&up
-        ) override;
+        );
 
         EventHandlersToken addInputEventHandlers(
             std::function<void(const char (&utf8char)[4])> &&input,
             std::function<void()> &&backspace
-        ) override;
+        );
 
         EventHandlersToken addMouseEventHandlers(
             std::function<void(const MouseEventArgs &)> &&press,
             std::function<void(const MouseEventArgs &)> &&move,
             std::function<void(const MouseEventArgs &)> &&release
-        ) override;
+        );
 
         EventHandlersToken addTouchEventHandlers(
             std::function<void(const TouchEventArgs &)> &&start,
             std::function<void(const TouchEventArgs &)> &&move,
             std::function<void(const TouchEventArgs &)> &&release
-        ) override;
+        );
 
         EventHandlersToken addGamepadEventHandlers(
             std::function<void(const GamepadEventArgs &)> &&buttonPress,
             std::function<void(const GamepadEventArgs &)> &&buttonRelease
-        ) override;
+        );
 
-        void run(
-            std::function<void(float)> &&updateAndDraw
-        ) override;
-        
-        void removeEventHandlers(EventHandlersToken token) override;
-        void exit() override;
+        void run(std::function<void(float)> &&updateAndDraw);
+        void removeEventHandlers(EventHandlersToken token);
+        void exit();
         
     public:
         std::function<void(float)> updateAndDrawHandler;
@@ -67,5 +58,93 @@ namespace platform {
         float _nativeScreenHeight;
     };
     
-    std::shared_ptr<PlatformInterface> getPlatformInstance();
+    std::vector<std::string> Platform::formFileList(const char *dirPath) {
+        return static_cast<IOSPlatform *>(this)->formFileList(dirPath);
+    }
+
+    bool Platform::loadFile(const char *filePath, std::unique_ptr<unsigned char []> &data, std::size_t &size) {
+        return static_cast<IOSPlatform *>(this)->loadFile(filePath, data, size);
+    }
+
+    float Platform::getNativeScreenWidth() const {
+        return static_cast<const IOSPlatform *>(this)->getNativeScreenWidth();
+    }
+    
+    float Platform::getNativeScreenHeight() const {
+        return static_cast<const IOSPlatform *>(this)->getNativeScreenHeight();
+    }
+
+    void *Platform::setNativeRenderingContext(void *context) {
+        return static_cast<IOSPlatform *>(this)->setNativeRenderingContext(context);
+    }
+
+    void Platform::showCursor() {
+        static_cast<IOSPlatform *>(this)->showCursor();
+    }
+    
+    void Platform::hideCursor() {
+        static_cast<IOSPlatform *>(this)->hideCursor();
+    }
+    
+    void Platform::showKeyboard() {
+        static_cast<IOSPlatform *>(this)->showKeyboard();
+    }
+    
+    void Platform::hideKeyboard() {
+        static_cast<IOSPlatform *>(this)->hideKeyboard();
+    }
+
+    EventHandlersToken Platform::addKeyboardEventHandlers(
+        std::function<void(const KeyboardEventArgs &)> &&down,
+        std::function<void(const KeyboardEventArgs &)> &&up
+    )
+    {
+        return static_cast<IOSPlatform *>(this)->addKeyboardEventHandlers(std::move(down), std::move(up));
+    }
+    
+    EventHandlersToken Platform::addInputEventHandlers(
+        std::function<void(const char (&utf8char)[4])> &&input,
+        std::function<void()> &&backspace
+    )
+    {
+        return static_cast<IOSPlatform *>(this)->addInputEventHandlers(std::move(input), std::move(backspace));
+    }
+
+    EventHandlersToken Platform::addMouseEventHandlers(
+        std::function<void(const MouseEventArgs &)> &&press,
+        std::function<void(const MouseEventArgs &)> &&move,
+        std::function<void(const MouseEventArgs &)> &&release
+    )
+    {
+        return static_cast<IOSPlatform *>(this)->addMouseEventHandlers(std::move(press), std::move(move), std::move(release));
+    }
+
+    EventHandlersToken Platform::addTouchEventHandlers(
+        std::function<void(const TouchEventArgs &)> &&start,
+        std::function<void(const TouchEventArgs &)> &&move,
+        std::function<void(const TouchEventArgs &)> &&release
+    )
+    {
+        return static_cast<IOSPlatform *>(this)->addTouchEventHandlers(std::move(start), std::move(move), std::move(release));
+    }
+
+    EventHandlersToken Platform::addGamepadEventHandlers(
+        std::function<void(const GamepadEventArgs &)> &&buttonPress,
+        std::function<void(const GamepadEventArgs &)> &&buttonRelease
+    )
+    {
+        return static_cast<IOSPlatform *>(this)->addGamepadEventHandlers(std::move(buttonPress), std::move(buttonRelease));
+    }
+
+    void Platform::run(std::function<void(float)> &&updateAndDraw) {
+        static_cast<IOSPlatform *>(this)->run(std::move(updateAndDraw));
+    }
+    
+    void Platform::removeEventHandlers(EventHandlersToken token) {
+        static_cast<IOSPlatform *>(this)->removeEventHandlers(token);
+    }
+    
+    void Platform::exit() {
+        static_cast<IOSPlatform *>(this)->exit();
+    }
 }
