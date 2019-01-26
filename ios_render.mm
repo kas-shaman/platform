@@ -34,6 +34,7 @@ namespace {
     }
     _nativeTextureFormatMap[unsigned(platform::Texture2D::Format::_count)] = {
         {GL_RGBA8, GL_RGBA},
+        {GL_RGB8, GL_RGB},
         {GL_R8, GL_RED}
     };
     

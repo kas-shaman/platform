@@ -11,7 +11,7 @@
 #import <UIKit/UIKit.h>
 #import <GLKit/GLKit.h>
 
-#define ALBUM_ORIENTATION 0
+#define ALBUM_ORIENTATION 1
 
 namespace {
     struct KeyboardEventHandler {

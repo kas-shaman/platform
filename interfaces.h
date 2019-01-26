@@ -205,8 +205,9 @@ namespace platform {
     class Texture2D : public Base {
     public:
         enum class Format {
-            RGBA8UN = 0,    // rgba 1 byte per channel normalized to [0..1]
-            R8UN = 1,       // 1 byte grayscale normalized to [0..1]. In shader .r component is used
+            RGBA8UN = 0,   // rgba 1 byte per channel normalized to [0..1]
+            RGB8UN = 1,    // rgb 1 byte per channel normalized to [0..1]
+            R8UN = 2,      // 1 byte grayscale normalized to [0..1]. In shader .r component is used
             _count
         };
         
