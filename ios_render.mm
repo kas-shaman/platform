@@ -10,7 +10,7 @@
 #import  <OpenGLES/ES3/gl.h>
 #import  <OpenGLES/ES3/glext.h>
 
-#define GLCHECK(...) __VA_ARGS__; if (auto error = glGetError()) { _platform->logError("[Render] GL Error : 0x%X", error); }
+#define GLCHECK(...) __VA_ARGS__; if (auto error = glGetError()) { _platform->logError("[Render] GL Error : 0x%X at %s(%d)", error, __FUNCTION__, __LINE__); }
 
 namespace {
     static constexpr std::size_t SHADER_LINES_MAX = 1024;
@@ -56,8 +56,8 @@ namespace {
         {4, GL_SHORT, GL_FALSE, 8},
         {2, GL_SHORT, GL_TRUE, 4},
         {4, GL_SHORT, GL_TRUE, 8},
-        {4, GL_BYTE, GL_FALSE, 4},
-        {4, GL_BYTE, GL_TRUE, 4},
+        {4, GL_UNSIGNED_BYTE, GL_FALSE, 4},
+        {4, GL_UNSIGNED_BYTE, GL_TRUE, 4},
         {1, GL_INT, GL_FALSE, 4},
         {2, GL_INT, GL_FALSE, 8},
         {3, GL_INT, GL_FALSE, 12},
@@ -86,10 +86,10 @@ namespace platform {
         {
             struct fn {
                 static void printLinedShader(const std::shared_ptr<Platform> &platform, const char **src, GLint *len, std::size_t cnt) {
-                    char buffer[256] = {0};
                     platform->logError("[Render] --------------------------------");
                     for (std::size_t i = 0; i < cnt; i++) {
-                        std::memcpy(buffer, src[i], len[i]);
+                        char buffer[256] = {0};
+                        std::memcpy(buffer, src[i], len[i] - 1);
                         platform->logError("%03zu |%s", i + 1, buffer);
                     }
                     platform->logError("-----------------------------------------");
@@ -371,6 +371,10 @@ namespace platform {
 
 namespace platform {
     IOSRender::IOSRender(const std::shared_ptr<Platform> &platform) : _platform(platform), _frameData(), _shaderConstStreamOffset(0) {
+        GLCHECK(glEnable(GL_DEPTH_TEST));
+        GLCHECK(glDepthFunc(GL_GREATER));
+        GLCHECK(glClearDepthf(0.0f));
+        
         GLCHECK(glGenBuffers(1, &_shaderFrameDataBuffer));
         GLCHECK(glBindBuffer(GL_UNIFORM_BUFFER, _shaderFrameDataBuffer));
         GLCHECK(glBufferData(GL_UNIFORM_BUFFER, sizeof(FrameData), nullptr, GL_DYNAMIC_DRAW));
@@ -386,7 +390,7 @@ namespace platform {
         GLCHECK(glDeleteBuffers(1, &_shaderFrameDataBuffer));
         GLCHECK(glDeleteBuffers(1, &_shaderConstStreamBuffer));
     }
-
+    
     void IOSRender::updateCameraTransform(const float (&camPos)[3], const float(&camDir)[3], const float(&camVP)[16]) {
         ::memcpy(_frameData.cameraPosition, camPos, 3 * sizeof(float));
         ::memcpy(_frameData.cameraDirection, camDir, 3 * sizeof(float));
@@ -401,7 +405,7 @@ namespace platform {
         return expect<Chs...>(stream);
     }
     
-    std::size_t shaderGetTypeSize(const std::string &varname, std::string &format) {
+    std::size_t shaderGetTypeSize(const std::string &varname, std::string &format, bool extended) {
         struct {
             const char *inputFormat;
             const char *outputFormat;
@@ -412,6 +416,22 @@ namespace platform {
             {"int4",   "ivec4", 16},
             {"uint4",  "uvec4", 16},
             {"matrix4", "mat4", 64},
+        },
+        typeSizeTableEx[] = {
+            {"float", "float",  4},
+            {"float2", "vec2",  8},
+            {"float3", "vec3",  12},
+            {"float4", "vec4",  16},
+            {"int",   "int", 4},
+            {"int2",   "ivec2", 8},
+            {"int3",   "ivec3", 12},
+            {"int4",   "ivec4", 16},
+            {"uint",  "uint", 4},
+            {"uint2",  "uvec2", 8},
+            {"uint3",  "uvec3", 12},
+            {"uint4",  "uvec4", 16},
+            {"matrix3", "mat3", 36},
+            {"matrix4", "mat4", 64},
         };
         
         int  multiply = 1;
@@ -421,11 +441,14 @@ namespace platform {
         if (braceStart != std::string::npos && braceEnd != std::string::npos) {
             multiply = std::max(std::stoi(varname.substr(braceStart + 1, braceEnd - braceStart - 1)), multiply);
         }
-        
-        for (const auto &fmt : typeSizeTable) {
-            if (fmt.inputFormat == format) {
-                format = fmt.outputFormat;
-                return fmt.size * multiply;
+
+        auto begin = extended ? std::begin(typeSizeTableEx) : std::begin(typeSizeTable);
+        auto end = extended ? std::end(typeSizeTableEx) : std::end(typeSizeTable);
+
+        for (auto index = begin; index != end; ++index) {
+            if (index->inputFormat == format) {
+                format = index->outputFormat;
+                return index->size * multiply;
             }
         }
         
@@ -449,7 +472,7 @@ namespace platform {
             {ShaderInput::Format::SHORT4, "ivec4"},
             {ShaderInput::Format::SHORT2_NRM, "vec2"},
             {ShaderInput::Format::SHORT4_NRM, "vec4"},
-            {ShaderInput::Format::BYTE4, "ivec4"},
+            {ShaderInput::Format::BYTE4, "uvec4"},
             {ShaderInput::Format::BYTE4_NRM, "vec4"},
         };
         
@@ -497,7 +520,7 @@ namespace platform {
             "#define _cos(a) cos(a)\n"
             "#define _sin(a) sin(a)\n"
             "#define _norm(a) normalize(a)\n"
-            "#define _tex2d(a, b) texture(a, b)\n"
+            "#define _tex2d(a, b) texture(_textures[a], b)\n"
             "\n"
             "layout(std140) uniform _FrameData\n{\n"
             "mediump mat4 _viewProjMatrix;\n"
@@ -531,15 +554,17 @@ namespace platform {
         
         vsInout += "\n";
         
-        auto readVarsBlock = [this, &stream, &varname, &arg, &error](const char *blockName, std::size_t &counter, std::string &t1, std::string *t2) {
+        auto readVarsBlock = [this, &stream, &varname, &arg, &error](const char *blockName, std::size_t &counter, std::string &out1, std::string *out2) {
             std::size_t bufferSize = 0;
+            bool extendedRangeOfTypes = strcmp(blockName, "inter") == 0;
+            
             if (counter++ == 0) {
                 while (stream >> varname && varname[0] != '}') {
                     if (stream >> expect<':'> >> arg) {
-                        if (std::size_t typeSize = shaderGetTypeSize(varname, arg)) {
+                        if (std::size_t typeSize = shaderGetTypeSize(varname, arg, extendedRangeOfTypes)) {
                             bufferSize += typeSize;
-                            t1 += "mediump " + arg + " " + varname + ";\n";
-                            if (t2) t2->append("mediump " + arg + " " + varname + ";\n");
+                            out1 += "mediump " + arg + " " + varname + ";\n";
+                            if (out2) out2->append("mediump " + arg + " " + varname + ";\n");
                         }
                         else {
                             _platform->logError("[Render] shader : unknown type of constant '%s'", varname.c_str());
@@ -645,7 +670,7 @@ namespace platform {
             else if (arg == "fssrc") {
                 if (readCodeBlock("fssrc", shaderFssrcCount, fsBlock)) {
                     fsInout += "out mediump vec4 out_color;\n\n";
-                    fsBlock = "uniform sampler2D textures[8];\nvoid main()\n{" + fsBlock + "}\n";
+                    fsBlock = "uniform sampler2D _textures[8];\nvoid main()\n{" + fsBlock + "}\n";
                     fsShader += shaderConsts + fsInout + fsBlock;
                 }
             }
@@ -806,7 +831,7 @@ namespace platform {
     }
     
     void IOSRender::prepareFrame() {
-        GLCHECK(glClearColor(0.1f, 0.1f, 0.1f, 1.0f));
+        GLCHECK(glClearColor(0.7f, 0.7f, 0.7f, 1.0f));
         GLCHECK(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
         
         _frameData.renderTargetBounds[0] = _platform->getNativeScreenWidth();

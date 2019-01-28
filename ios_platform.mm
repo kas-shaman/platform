@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <pthread.h>
 
+#define GLES_SILENCE_DEPRECATION
+
 #import <UIKit/UIKit.h>
 #import <GLKit/GLKit.h>
 

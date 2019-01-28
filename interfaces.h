@@ -56,7 +56,7 @@ namespace platform {
     struct GamepadEventArgs {
     };
     
-    using EventHandlersToken = struct {} *;
+    using EventHandlersToken = unsigned char *;
     
     // Interface provides low-level core methods
     //
@@ -268,11 +268,10 @@ namespace platform {
         //     _cameraPosition     : float4 - camera position (w = 1)
         //     _cameraDirection    : float4 - normalized camera direction (w = 0)
         //
-        // Textures:
-        //     _textures[8] - array of 8 texture slots. Example: float4 color = _tex2d(_textures[0], float2(0, 0));
+        // Textures. There 8 texture slots. Example of getting color from the last slot: float4 color = _tex2d(7, float2(0, 0));
         //
         // Global functions:
-        //     _transform(v, m), _sign(s), _dot(v, v), _sin(v), _cos(v), _norm(v), _tex2d(t, v)
+        //     _transform(v, m), _sign(s), _dot(v, v), _sin(v), _cos(v), _norm(v), _tex2d(index, v)
         //
         std::shared_ptr<Shader> createShader(
             const char *shadersrc,
